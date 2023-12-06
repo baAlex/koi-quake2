@@ -1,3 +1,6 @@
+Quake 2 Me
+==========
+
 This is a mod/addon that changes Quake 2 gameplay mechanics just for
 fun and experimentation. Regarding the name it doesn't mean anything (yet).
 
