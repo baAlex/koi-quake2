@@ -27,11 +27,8 @@
 #include "../header/local.h"
 #include "../monster/misc/player.h"
 
-static edict_t *current_player;
-static gclient_t *current_client;
-
-static vec3_t forward, right, up;
-static float xyspeed;
+static vec3_t s_forward, s_right, s_up;
+static float s_xyspeed;
 
 
 float
@@ -41,7 +38,7 @@ SV_CalcRoll(vec3_t angles, vec3_t velocity)
 	float side;
 	float value;
 
-	side = DotProduct(velocity, right);
+	side = DotProduct(velocity, s_right);
 	sign = side < 0 ? -1 : 1;
 	side = fabs(side);
 
@@ -268,26 +265,8 @@ SV_CalcViewOffset(edict_t *ent)
 void
 SV_CalcGunOffset(edict_t *ent)
 {
-	int i;
-
-	if (!ent)
-	{
-		return;
-	}
-
-	/* gun angles */
-	VectorClear(ent->client->ps.gunangles);
-
-	/* gun offset */
-	VectorClear(ent->client->ps.gunoffset);
-
-	for (i = 0; i < 3; i++)
-	{
-		/* gun_x / gun_y / gun_z are development tools */
-		ent->client->ps.gunoffset[i] += forward[i] * (gun_y->value);
-		ent->client->ps.gunoffset[i] += right[i] * gun_x->value;
-		ent->client->ps.gunoffset[i] += up[i] * (-gun_z->value);
-	}
+	(void) ent;
+	/* I cannot remove functions, they are hardcoded to the savegame system */
 }
 
 void
@@ -563,82 +542,82 @@ P_FallingDamage(edict_t *ent)
 }
 
 void
-P_WorldEffects(void)
+P_WorldEffects(edict_t *ent)
 {
 	qboolean breather;
 	qboolean envirosuit;
 	int waterlevel, old_waterlevel;
 
-	if (current_player->movetype == MOVETYPE_NOCLIP)
+	if (ent->movetype == MOVETYPE_NOCLIP)
 	{
-		current_player->air_finished = level.time + 12; /* don't need air */
+		ent->air_finished = level.time + 12; /* don't need air */
 		return;
 	}
 
-	waterlevel = current_player->waterlevel;
-	old_waterlevel = current_client->old_waterlevel;
-	current_client->old_waterlevel = waterlevel;
+	waterlevel = ent->waterlevel;
+	old_waterlevel = ent->client->old_waterlevel;
+	ent->client->old_waterlevel = waterlevel;
 
-	breather = current_client->breather_framenum > level.framenum;
-	envirosuit = current_client->enviro_framenum > level.framenum;
+	breather = ent->client->breather_framenum > level.framenum;
+	envirosuit = ent->client->enviro_framenum > level.framenum;
 
 	/* if just entered a water volume, play a sound */
 	if (!old_waterlevel && waterlevel)
 	{
-		PlayerNoise(current_player, current_player->s.origin, PNOISE_SELF);
+		PlayerNoise(ent, ent->s.origin, PNOISE_SELF);
 
-		if (current_player->watertype & CONTENTS_LAVA)
+		if (ent->watertype & CONTENTS_LAVA)
 		{
-			gi.sound(current_player, CHAN_BODY,
+			gi.sound(ent, CHAN_BODY,
 					gi.soundindex("player/lava_in.wav"), 1, ATTN_NORM, 0);
 		}
-		else if (current_player->watertype & CONTENTS_SLIME)
+		else if (ent->watertype & CONTENTS_SLIME)
 		{
-			gi.sound(current_player, CHAN_BODY,
+			gi.sound(ent, CHAN_BODY,
 					gi.soundindex("player/watr_in.wav"), 1, ATTN_NORM, 0);
 		}
-		else if (current_player->watertype & CONTENTS_WATER)
+		else if (ent->watertype & CONTENTS_WATER)
 		{
-			gi.sound(current_player, CHAN_BODY,
+			gi.sound(ent, CHAN_BODY,
 					gi.soundindex("player/watr_in.wav"), 1, ATTN_NORM, 0);
 		}
 
-		current_player->flags |= FL_INWATER;
+		ent->flags |= FL_INWATER;
 
 		/* clear damage_debounce, so the pain sound will play immediately */
-		current_player->damage_debounce_time = level.time - 1;
+		ent->damage_debounce_time = level.time - 1;
 	}
 
 	/* if just completely exited a water volume, play a sound */
 	if (old_waterlevel && !waterlevel)
 	{
-		PlayerNoise(current_player, current_player->s.origin, PNOISE_SELF);
-		gi.sound(current_player, CHAN_BODY, gi.soundindex(
+		PlayerNoise(ent, ent->s.origin, PNOISE_SELF);
+		gi.sound(ent, CHAN_BODY, gi.soundindex(
 						"player/watr_out.wav"), 1, ATTN_NORM, 0);
-		current_player->flags &= ~FL_INWATER;
+		ent->flags &= ~FL_INWATER;
 	}
 
 	/* check for head just going under moove^^water */
 	if ((old_waterlevel != 3) && (waterlevel == 3))
 	{
-		gi.sound(current_player, CHAN_BODY, gi.soundindex(
+		gi.sound(ent, CHAN_BODY, gi.soundindex(
 						"player/watr_un.wav"), 1, ATTN_NORM, 0);
 	}
 
 	/* check for head just coming out of water */
 	if ((old_waterlevel == 3) && (waterlevel != 3))
 	{
-		if (current_player->air_finished < level.time)
+		if (ent->air_finished < level.time)
 		{
 			/* gasp for air */
-			gi.sound(current_player, CHAN_VOICE,
+			gi.sound(ent, CHAN_VOICE,
 					gi.soundindex("player/gasp1.wav"), 1, ATTN_NORM, 0);
-			PlayerNoise(current_player, current_player->s.origin, PNOISE_SELF);
+			PlayerNoise(ent, ent->s.origin, PNOISE_SELF);
 		}
-		else if (current_player->air_finished < level.time + 11)
+		else if (ent->air_finished < level.time + 11)
 		{
 			/* just break surface */
-			gi.sound(current_player, CHAN_VOICE,
+			gi.sound(ent, CHAN_VOICE,
 					gi.soundindex("player/gasp2.wav"), 1, ATTN_NORM, 0);
 		}
 	}
@@ -649,122 +628,122 @@ P_WorldEffects(void)
 		/* breather or envirosuit give air */
 		if (breather || envirosuit)
 		{
-			current_player->air_finished = level.time + 10;
+			ent->air_finished = level.time + 10;
 
-			if (((int)(current_client->breather_framenum -
+			if (((int)(ent->client->breather_framenum -
 					   level.framenum) % 25) == 0)
 			{
-				if (!current_client->breather_sound)
+				if (!ent->client->breather_sound)
 				{
-					gi.sound(current_player, CHAN_AUTO,
+					gi.sound(ent, CHAN_AUTO,
 							gi.soundindex("player/u_breath1.wav"), 1, ATTN_NORM, 0);
 				}
 				else
 				{
-					gi.sound(current_player, CHAN_AUTO,
+					gi.sound(ent, CHAN_AUTO,
 							gi.soundindex("player/u_breath2.wav"), 1, ATTN_NORM, 0);
 				}
 
-				current_client->breather_sound ^= 1;
-				PlayerNoise(current_player, current_player->s.origin,
+				ent->client->breather_sound ^= 1;
+				PlayerNoise(ent, ent->s.origin,
 						PNOISE_SELF);
 			}
 		}
 
 		/* if out of air, start drowning */
-		if (current_player->air_finished < level.time)
+		if (ent->air_finished < level.time)
 		{
 			/* drown! */
-			if ((current_player->client->next_drown_time < level.time) &&
-				(current_player->health > 0))
+			if ((ent->client->next_drown_time < level.time) &&
+				(ent->health > 0))
 			{
-				current_player->client->next_drown_time = level.time + 1;
+				ent->client->next_drown_time = level.time + 1;
 
 				/* take more damage the longer underwater */
-				current_player->dmg += 2;
+				ent->dmg += 2;
 
-				if (current_player->dmg > 15)
+				if (ent->dmg > 15)
 				{
-					current_player->dmg = 15;
+					ent->dmg = 15;
 				}
 
 				/* play a gurp sound instead of a normal pain sound */
-				if (current_player->health <= current_player->dmg)
+				if (ent->health <= ent->dmg)
 				{
-					gi.sound(current_player, CHAN_VOICE,
+					gi.sound(ent, CHAN_VOICE,
 							gi.soundindex("player/drown1.wav"), 1, ATTN_NORM, 0);
 				}
 				else if (randk() & 1)
 				{
-					gi.sound(current_player, CHAN_VOICE,
+					gi.sound(ent, CHAN_VOICE,
 							gi.soundindex("*gurp1.wav"), 1, ATTN_NORM, 0);
 				}
 				else
 				{
-					gi.sound(current_player, CHAN_VOICE,
+					gi.sound(ent, CHAN_VOICE,
 							gi.soundindex("*gurp2.wav"), 1, ATTN_NORM, 0);
 				}
 
-				current_player->pain_debounce_time = level.time;
+				ent->pain_debounce_time = level.time;
 
-				T_Damage(current_player, world, world, vec3_origin,
-						current_player->s.origin, vec3_origin,
-						current_player->dmg, 0, DAMAGE_NO_ARMOR,
+				T_Damage(ent, world, world, vec3_origin,
+						ent->s.origin, vec3_origin,
+						ent->dmg, 0, DAMAGE_NO_ARMOR,
 						MOD_WATER);
 			}
 		}
 	}
 	else
 	{
-		current_player->air_finished = level.time + 12;
-		current_player->dmg = 2;
+		ent->air_finished = level.time + 12;
+		ent->dmg = 2;
 	}
 
 	/* check for sizzle damage */
-	if (waterlevel && (current_player->watertype & (CONTENTS_LAVA | CONTENTS_SLIME)))
+	if (waterlevel && (ent->watertype & (CONTENTS_LAVA | CONTENTS_SLIME)))
 	{
-		if (current_player->watertype & CONTENTS_LAVA)
+		if (ent->watertype & CONTENTS_LAVA)
 		{
-			if ((current_player->health > 0) &&
-				(current_player->pain_debounce_time <= level.time) &&
-				(current_client->invincible_framenum < level.framenum) &&
-				!(current_player->flags & FL_GODMODE))
+			if ((ent->health > 0) &&
+				(ent->pain_debounce_time <= level.time) &&
+				(ent->client->invincible_framenum < level.framenum) &&
+				!(ent->flags & FL_GODMODE))
 			{
 				if (randk() & 1)
 				{
-					gi.sound(current_player, CHAN_VOICE,
+					gi.sound(ent, CHAN_VOICE,
 							gi.soundindex("player/burn1.wav"), 1, ATTN_NORM, 0);
 				}
 				else
 				{
-					gi.sound(current_player, CHAN_VOICE,
+					gi.sound(ent, CHAN_VOICE,
 							gi.soundindex("player/burn2.wav"), 1, ATTN_NORM, 0);
 				}
 
-				current_player->pain_debounce_time = level.time + 1;
+				ent->pain_debounce_time = level.time + 1;
 			}
 
 			if (envirosuit) /* take 1/3 damage with envirosuit */
 			{
-				T_Damage(current_player, world, world, vec3_origin,
-						current_player->s.origin, vec3_origin,
+				T_Damage(ent, world, world, vec3_origin,
+						ent->s.origin, vec3_origin,
 						1 * waterlevel, 0, 0, MOD_LAVA);
 			}
 			else
 			{
-				T_Damage(current_player, world, world, vec3_origin,
-						current_player->s.origin, vec3_origin,
+				T_Damage(ent, world, world, vec3_origin,
+						ent->s.origin, vec3_origin,
 						3 * waterlevel, 0, 0, MOD_LAVA);
 			}
 		}
 
-		if (current_player->watertype & CONTENTS_SLIME)
+		if (ent->watertype & CONTENTS_SLIME)
 		{
 			if (!envirosuit)
 			{
 				/* no damage from slime with envirosuit */
-				T_Damage(current_player, world, world, vec3_origin,
-						current_player->s.origin, vec3_origin,
+				T_Damage(ent, world, world, vec3_origin,
+						ent->s.origin, vec3_origin,
 						1 * waterlevel, 0, 0, MOD_SLIME);
 			}
 		}
@@ -837,7 +816,7 @@ void
 G_SetClientEvent(edict_t *ent)
 {
 	(void) ent;
-	// I cannot remove functions, they are hardcoded to the savegame system
+	/* I cannot remove functions, they are hardcoded to the savegame system */
 }
 
 void
@@ -923,7 +902,7 @@ G_SetClientFrame(edict_t *ent)
 		duck = false;
 	}
 
-	if (xyspeed)
+	if (s_xyspeed)
 	{
 		run = true;
 	}
@@ -1043,9 +1022,6 @@ ClientEndServerFrame(edict_t *ent)
 		return;
 	}
 
-	current_player = ent;
-	current_client = ent->client;
-
 	/* If the origin or velocity have changed since ClientThink(),
 	   update the pmove values. This will happen when the client
 	   is pushed by a bmodel or kicked by an explosion.
@@ -1053,24 +1029,24 @@ ClientEndServerFrame(edict_t *ent)
 	   behind the body position when pushed -- "sinking into plats" */
 	for (i = 0; i < 3; i++)
 	{
-		current_client->ps.pmove.origin[i] = ent->s.origin[i] * 8.0;
-		current_client->ps.pmove.velocity[i] = ent->velocity[i] * 8.0;
+		ent->client->ps.pmove.origin[i] = ent->s.origin[i] * 8.0;
+		ent->client->ps.pmove.velocity[i] = ent->velocity[i] * 8.0;
 	}
 
 	/* If the end of unit layout is displayed, don't give
 	   the player any normal movement attributes */
 	if (level.intermissiontime)
 	{
-		current_client->ps.blend[3] = 0;
-		current_client->ps.fov = 90;
+		ent->client->ps.blend[3] = 0;
+		ent->client->ps.fov = 90;
 		G_SetStats(ent);
 		return;
 	}
 
-	AngleVectors(ent->client->v_angle, forward, right, up);
+	AngleVectors(ent->client->v_angle, s_forward, s_right, s_up);
 
 	/* burn from lava, etc */
-	P_WorldEffects();
+	P_WorldEffects(ent);
 
 	/* set model angles from view angles so other things in
 	   the world can tell which direction you are looking */
@@ -1089,7 +1065,7 @@ ClientEndServerFrame(edict_t *ent)
 
 	/* calculate speed and cycle to be used for
 	   all cyclic walking effects */
-	xyspeed = sqrt(
+	s_xyspeed = sqrt(
 			ent->velocity[0] * ent->velocity[0] + ent->velocity[1] *
 			ent->velocity[1]);
 
@@ -1102,8 +1078,19 @@ ClientEndServerFrame(edict_t *ent)
 	/* determine the view offsets */
 	SV_CalcViewOffset(ent);
 
-	/* determine the gun offsets */
-	SV_CalcGunOffset(ent);
+	/* gun angles */
+	VectorClear(ent->client->ps.gunangles);
+
+	/* gun offset */
+	VectorClear(ent->client->ps.gunoffset);
+
+	for (i = 0; i < 3; i++)
+	{
+		/* gun_x / gun_y / gun_z are development tools */
+		ent->client->ps.gunoffset[i] += s_forward[i] * (gun_y->value);
+		ent->client->ps.gunoffset[i] += s_right[i] * gun_x->value;
+		ent->client->ps.gunoffset[i] += s_up[i] * (-gun_z->value);
+	}
 
 	/* determine the full screen color blend
 	   must be after viewoffset, so eye contents
