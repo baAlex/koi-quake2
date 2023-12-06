@@ -2488,6 +2488,23 @@ ClientBeginServerFrame(edict_t *ent)
 		return;
 	}
 
+	/* regenerate health */
+	if (ent->health > 0 && ent->health < ent->max_health &&
+	    client->prev_health == ent->health /* only regenerate if we aren't under fire */)
+	{
+		if (ent->wait < level.time)
+		{
+			ent->health += 1;
+			ent->wait = level.time + 0.25f;
+		}
+	}
+	else
+	{
+		ent->wait = level.time + 4.0f; /* four seconds delay before regeneration */
+	}
+
+	client->prev_health = ent->health;
+
 	/* add player trail so monsters can follow */
 	if (!deathmatch->value)
 	{

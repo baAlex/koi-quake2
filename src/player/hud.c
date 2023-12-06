@@ -414,6 +414,7 @@ G_SetStats(edict_t *ent)
 	gitem_t *item;
 	int index, cells = 0;
 	int power_armor_type;
+	float easing;
 
 	if (!ent)
 	{
@@ -423,6 +424,14 @@ G_SetStats(edict_t *ent)
 	/* health */
 	ent->client->ps.stats[STAT_HEALTH_ICON] = level.pic_health;
 	ent->client->ps.stats[STAT_HEALTH] = (ent->health < -99) ? -99 : ent->health;
+
+	if (ent->health > 0 && ent->health <= 100)
+	{
+		/* send health to client through an easing function,
+		   a psychological trick to make things more dramatic */
+		easing = powf((float)(ent->health) / 100.0f, 2.0f);
+		ent->client->ps.stats[STAT_HEALTH] = (short)(ceilf(easing * 100.0f));
+	}
 
 	/* ammo */
 	if (!ent->client->ammo_index)

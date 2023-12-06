@@ -939,6 +939,7 @@ struct gclient_s
 	int breather_sound;
 
 	int machinegun_shots; /* for weapon raising */
+	int prev_health; /* client.c, to regenerate health */
 
 	/* animation vars */
 	int anim_end;
