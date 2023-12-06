@@ -278,7 +278,7 @@ Q2ME_OBJS = $(patsubst %,build/%,$(Q2ME_OBJS_))
 # ----------
 
 # Generate header dependencies
-Q2ME_DEPS= $(Q2ME_OBJS:.o=.d)
+Q2ME_DEPS= $(Q2ME_OBJS:.o=.d) 'src/header/new.h'
 
 # ----------
 

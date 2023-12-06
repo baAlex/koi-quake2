@@ -25,6 +25,7 @@
  */
 
 #include "../header/local.h"
+#include "../header/new.h"
 #include "../monster/misc/player.h"
 
 void ClientUserinfoChanged(edict_t *ent, char *userinfo);
@@ -2489,21 +2490,24 @@ ClientBeginServerFrame(edict_t *ent)
 	}
 
 	/* regenerate health */
-	if (ent->health > 0 && ent->health < ent->max_health &&
-	    client->prev_health == ent->health /* only regenerate if we aren't under fire */)
+	if (HEALTH_REGENERATION == true)
 	{
-		if (ent->wait < level.time)
+		if (ent->health > 0 && ent->health < ent->max_health &&
+		    client->prev_health == ent->health /* only regenerate if we aren't under fire */)
 		{
-			ent->health += 1;
-			ent->wait = level.time + 0.25f;
+			if (ent->wait < level.time)
+			{
+				ent->health += 1;
+				ent->wait = level.time + HEALTH_REGENERATION_SPEED;
+			}
 		}
-	}
-	else
-	{
-		ent->wait = level.time + 4.0f; /* four seconds delay before regeneration */
-	}
+		else
+		{
+			ent->wait = level.time + HEALTH_REGENERATION_DELAY;
+		}
 
-	client->prev_health = ent->health;
+		client->prev_health = ent->health;
+	}
 
 	/* add player trail so monsters can follow */
 	if (!deathmatch->value)

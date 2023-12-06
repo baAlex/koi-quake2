@@ -25,6 +25,7 @@
  */
 
 #include "../header/local.h"
+#include "../header/new.h"
 
 void
 MoveClientToIntermission(edict_t *ent)
@@ -425,11 +426,11 @@ G_SetStats(edict_t *ent)
 	ent->client->ps.stats[STAT_HEALTH_ICON] = level.pic_health;
 	ent->client->ps.stats[STAT_HEALTH] = (ent->health < -99) ? -99 : ent->health;
 
-	if (ent->health > 0 && ent->health <= 100)
+	if (HEALTH_HUD_EASING == true && ent->health > 0 && ent->health <= 100)
 	{
 		/* send health to client through an easing function,
 		   a psychological trick to make things more dramatic */
-		easing = powf((float)(ent->health) / 100.0f, 2.0f);
+		easing = powf((float)(ent->health) / 100.0f, HEALTH_HUD_EASING_FACTOR);
 		ent->client->ps.stats[STAT_HEALTH] = (short)(ceilf(easing * 100.0f));
 	}
 
