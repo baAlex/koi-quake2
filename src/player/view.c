@@ -33,9 +33,6 @@ static gclient_t *current_client;
 static vec3_t forward, right, up;
 static float xyspeed;
 
-static float bobmove;
-static int bobcycle; /* odd cycles are right foot going forward */
-static float bobfracsin; /* sin(bobfrac*M_PI) */
 
 float
 SV_CalcRoll(vec3_t angles, vec3_t velocity)
@@ -69,8 +66,7 @@ void
 P_DamageFeedback(edict_t *player)
 {
 	gclient_t *client;
-	float side;
-	float realcount, count, kick;
+	float realcount, count;
 	vec3_t v;
 	int r, l;
 	static vec3_t power_color = {0.0, 1.0, 0.0};
@@ -224,35 +220,6 @@ P_DamageFeedback(edict_t *player)
 
 	VectorCopy(v, client->damage_blend);
 
-	/* calculate view angle kicks */
-	kick = abs(client->damage_knockback);
-
-	if (kick && (player->health > 0)) /* kick of 0 means no view adjust at all */
-	{
-		kick = kick * 100 / player->health;
-
-		if (kick < count * 0.5)
-		{
-			kick = count * 0.5;
-		}
-
-		if (kick > 50)
-		{
-			kick = 50;
-		}
-
-		VectorSubtract(client->damage_from, player->s.origin, v);
-		VectorNormalize(v);
-
-		side = DotProduct(v, right);
-		client->v_dmg_roll = kick * side * 0.3;
-
-		side = -DotProduct(v, forward);
-		client->v_dmg_pitch = kick * side * 0.3;
-
-		client->v_dmg_time = level.time + DAMAGE_TIME;
-	}
-
 	/* clear totals */
 	client->damage_blood = 0;
 	client->damage_armor = 0;
@@ -273,15 +240,12 @@ void
 SV_CalcViewOffset(edict_t *ent)
 {
 	float *angles;
-	float bob;
-	float ratio;
-	float delta;
 	vec3_t v;
 
 	/* base angles */
 	angles = ent->client->ps.kick_angles;
 
-	/* if dead, fix the angle and don't add any kick */
+	/* if dead, fix the angle */
 	if (ent->deadflag)
 	{
 		VectorClear(angles);
@@ -290,64 +254,6 @@ SV_CalcViewOffset(edict_t *ent)
 		ent->client->ps.viewangles[PITCH] = -15;
 		ent->client->ps.viewangles[YAW] = ent->client->killer_yaw;
 	}
-	else
-	{
-		/* add angles based on weapon kick */
-		VectorCopy(ent->client->kick_angles, angles);
-
-		/* add angles based on damage kick */
-		ratio = (ent->client->v_dmg_time - level.time) / DAMAGE_TIME;
-
-		if (ratio < 0)
-		{
-			ratio = 0;
-			ent->client->v_dmg_pitch = 0;
-			ent->client->v_dmg_roll = 0;
-		}
-
-		angles[PITCH] += ratio * ent->client->v_dmg_pitch;
-		angles[ROLL] += ratio * ent->client->v_dmg_roll;
-
-		/* add pitch based on fall kick */
-		ratio = (ent->client->fall_time - level.time) / FALL_TIME;
-
-		if (ratio < 0)
-		{
-			ratio = 0;
-		}
-
-		angles[PITCH] += ratio * ent->client->fall_value;
-
-		/* add angles based on velocity */
-		delta = DotProduct(ent->velocity, forward);
-		angles[PITCH] += delta * run_pitch->value;
-
-		delta = DotProduct(ent->velocity, right);
-		angles[ROLL] += delta * run_roll->value;
-
-		/* add angles based on bob */
-		delta = bobfracsin * bob_pitch->value * xyspeed;
-
-		if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
-		{
-			delta *= 6; /* crouching */
-		}
-
-		angles[PITCH] += delta;
-		delta = bobfracsin * bob_roll->value * xyspeed;
-
-		if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
-		{
-			delta *= 6; /* crouching */
-		}
-
-		if (bobcycle & 1)
-		{
-			delta = -delta;
-		}
-
-		angles[ROLL] += delta;
-	}
 
 	/* base origin */
 	VectorClear(v);
@@ -355,59 +261,7 @@ SV_CalcViewOffset(edict_t *ent)
 	/* add view height */
 	v[2] += ent->viewheight;
 
-	/* add fall height */
-	ratio = (ent->client->fall_time - level.time) / FALL_TIME;
-
-	if (ratio < 0)
-	{
-		ratio = 0;
-	}
-
-	v[2] -= ratio * ent->client->fall_value * 0.4;
-
-	/* add bob height */
-	bob = bobfracsin * xyspeed * bob_up->value;
-
-	if (bob > 6)
-	{
-		bob = 6;
-	}
-
-	v[2] += bob;
-
-	/* add kick offset */
-	VectorAdd(v, ent->client->kick_origin, v);
-
-	/* absolutely bound offsets
-	   so the view can never be
-	   outside the player box */
-	if (v[0] < -14)
-	{
-		v[0] = -14;
-	}
-	else if (v[0] > 14)
-	{
-		v[0] = 14;
-	}
-
-	if (v[1] < -14)
-	{
-		v[1] = -14;
-	}
-	else if (v[1] > 14)
-	{
-		v[1] = 14;
-	}
-
-	if (v[2] < -22)
-	{
-		v[2] = -22;
-	}
-	else if (v[2] > 30)
-	{
-		v[2] = 30;
-	}
-
+	/* done! */
 	VectorCopy(v, ent->client->ps.viewoffset);
 }
 
@@ -415,64 +269,21 @@ void
 SV_CalcGunOffset(edict_t *ent)
 {
 	int i;
-	float delta;
 
 	if (!ent)
 	{
 		return;
 	}
 
-	/* gun angles from bobbing */
-	ent->client->ps.gunangles[ROLL] = xyspeed * bobfracsin * 0.005;
-	ent->client->ps.gunangles[YAW] = xyspeed * bobfracsin * 0.01;
+	/* gun angles */
+	VectorClear(ent->client->ps.gunangles);
 
-	if (bobcycle & 1)
-	{
-		ent->client->ps.gunangles[ROLL] = -ent->client->ps.gunangles[ROLL];
-		ent->client->ps.gunangles[YAW] = -ent->client->ps.gunangles[YAW];
-	}
-
-	ent->client->ps.gunangles[PITCH] = xyspeed * bobfracsin * 0.005;
-
-	/* gun angles from delta movement */
-	for (i = 0; i < 3; i++)
-	{
-		delta = ent->client->oldviewangles[i] - ent->client->ps.viewangles[i];
-
-		if (delta > 180)
-		{
-			delta -= 360;
-		}
-
-		if (delta < -180)
-		{
-			delta += 360;
-		}
-
-		if (delta > 45)
-		{
-			delta = 45;
-		}
-
-		if (delta < -45)
-		{
-			delta = -45;
-		}
-
-		if (i == YAW)
-		{
-			ent->client->ps.gunangles[ROLL] += 0.1 * delta;
-		}
-
-		ent->client->ps.gunangles[i] += 0.2 * delta;
-	}
-
-	/* gun height */
+	/* gun offset */
 	VectorClear(ent->client->ps.gunoffset);
 
-	/* gun_x / gun_y / gun_z are development tools */
 	for (i = 0; i < 3; i++)
 	{
+		/* gun_x / gun_y / gun_z are development tools */
 		ent->client->ps.gunoffset[i] += forward[i] * (gun_y->value);
 		ent->client->ps.gunoffset[i] += right[i] * gun_x->value;
 		ent->client->ps.gunoffset[i] += up[i] * (-gun_z->value);
@@ -1025,48 +836,8 @@ G_SetClientEffects(edict_t *ent)
 void
 G_SetClientEvent(edict_t *ent)
 {
-	if (!ent)
-	{
-		return;
-	}
-
-	if (ent->s.event)
-	{
-		return;
-	}
-
-	if (ent->health <= 0)
-	{
-		return;
-	}
-
-	if (g_footsteps->value == 1)
-	{
-		if (ent->groundentity && (xyspeed > 225))
-		{
-			if ((int)(current_client->bobtime + bobmove) != bobcycle)
-			{
-				ent->s.event = EV_FOOTSTEP;
-			}
-		}
-	}
-	else if (g_footsteps->value == 2)
-	{
-		if (ent->groundentity)
-		{
-			if ((int)(current_client->bobtime + bobmove) != bobcycle)
-			{
-				ent->s.event = EV_FOOTSTEP;
-			}
-		}
-	}
-	else if (g_footsteps->value >= 3)
-	{
-		if ((int)(current_client->bobtime + bobmove) != bobcycle)
-		{
-			ent->s.event = EV_FOOTSTEP;
-		}
-	}
+	(void) ent;
+	// I cannot remove functions, they are hardcoded to the savegame system
 }
 
 void
@@ -1265,7 +1036,6 @@ newanim:
 void
 ClientEndServerFrame(edict_t *ent)
 {
-	float bobtime;
 	int i;
 
 	if (!ent)
@@ -1323,38 +1093,6 @@ ClientEndServerFrame(edict_t *ent)
 			ent->velocity[0] * ent->velocity[0] + ent->velocity[1] *
 			ent->velocity[1]);
 
-	if (xyspeed < 5)
-	{
-		bobmove = 0;
-		current_client->bobtime = 0; /* start at beginning of cycle again */
-	}
-	else if (ent->groundentity)
-	{
-		/* so bobbing only cycles when on ground */
-		if (xyspeed > 210)
-		{
-			bobmove = 0.25;
-		}
-		else if (xyspeed > 100)
-		{
-			bobmove = 0.125;
-		}
-		else
-		{
-			bobmove = 0.0625;
-		}
-	}
-
-	bobtime = (current_client->bobtime += bobmove);
-
-	if (current_client->ps.pmove.pm_flags & PMF_DUCKED)
-	{
-		bobtime *= 4;
-	}
-
-	bobcycle = (int)bobtime;
-	bobfracsin = fabs(sin(bobtime * M_PI));
-
 	/* detect hitting the floor */
 	P_FallingDamage(ent);
 
@@ -1394,10 +1132,6 @@ ClientEndServerFrame(edict_t *ent)
 
 	VectorCopy(ent->velocity, ent->client->oldvelocity);
 	VectorCopy(ent->client->ps.viewangles, ent->client->oldviewangles);
-
-	/* clear weapon kicks */
-	VectorClear(ent->client->kick_origin);
-	VectorClear(ent->client->kick_angles);
 
 	if (!(level.framenum & 31))
 	{
