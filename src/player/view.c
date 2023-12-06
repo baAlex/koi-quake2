@@ -25,20 +25,17 @@
  */
 
 #include "../header/local.h"
+#include "../header/new.h"
 #include "../monster/misc/player.h"
 
-static vec3_t s_forward, s_right, s_up;
-static float s_xyspeed;
-
-
 float
-SV_CalcRoll(vec3_t angles, vec3_t velocity)
+SV_CalcRoll(vec3_t view_right, vec3_t angles, vec3_t velocity)
 {
 	float sign;
 	float side;
 	float value;
 
-	side = DotProduct(velocity, s_right);
+	side = DotProduct(velocity, view_right);
 	sign = side < 0 ? -1 : 1;
 	side = fabs(side);
 
@@ -224,15 +221,6 @@ P_DamageFeedback(edict_t *player)
 	client->damage_knockback = 0;
 }
 
-/*
- * fall from 128: 400 = 160000
- * fall from 256: 580 = 336400
- * fall from 384: 720 = 518400
- * fall from 512: 800 = 640000
- * fall from 640: 960 =
- *
- * damage = deltavelocity*deltavelocity  * 0.0001
- */
 void
 SV_CalcViewOffset(edict_t *ent)
 {
@@ -876,7 +864,7 @@ G_SetClientSound(edict_t *ent)
 }
 
 void
-G_SetClientFrame(edict_t *ent)
+G_SetClientFrame(edict_t *ent, float xyspeed)
 {
 	gclient_t *client;
 	qboolean duck, run;
@@ -902,7 +890,7 @@ G_SetClientFrame(edict_t *ent)
 		duck = false;
 	}
 
-	if (s_xyspeed)
+	if (xyspeed)
 	{
 		run = true;
 	}
@@ -1015,6 +1003,8 @@ newanim:
 void
 ClientEndServerFrame(edict_t *ent)
 {
+	vec3_t forward, right, up;
+	float xyspeed;
 	int i;
 
 	if (!ent)
@@ -1043,7 +1033,7 @@ ClientEndServerFrame(edict_t *ent)
 		return;
 	}
 
-	AngleVectors(ent->client->v_angle, s_forward, s_right, s_up);
+	AngleVectors(ent->client->v_angle, forward, right, up);
 
 	/* burn from lava, etc */
 	P_WorldEffects(ent);
@@ -1061,13 +1051,7 @@ ClientEndServerFrame(edict_t *ent)
 
 	ent->s.angles[YAW] = ent->client->v_angle[YAW];
 	ent->s.angles[ROLL] = 0;
-	ent->s.angles[ROLL] = SV_CalcRoll(ent->s.angles, ent->velocity) * 4;
-
-	/* calculate speed and cycle to be used for
-	   all cyclic walking effects */
-	s_xyspeed = sqrt(
-			ent->velocity[0] * ent->velocity[0] + ent->velocity[1] *
-			ent->velocity[1]);
+	ent->s.angles[ROLL] = SV_CalcRoll(right, ent->s.angles, ent->velocity) * 4;
 
 	/* detect hitting the floor */
 	P_FallingDamage(ent);
@@ -1078,8 +1062,81 @@ ClientEndServerFrame(edict_t *ent)
 	/* determine the view offsets */
 	SV_CalcViewOffset(ent);
 
-	/* gun angles */
-	VectorClear(ent->client->ps.gunangles);
+	/* walkcycle */
+	if (WALKCYCLE == true)
+	{
+		xyspeed = sqrtf(powf(ent->velocity[0], 2.0f) + powf(ent->velocity[1], 2.0f));
+
+		if (xyspeed > 0.0f && ent->groundentity)
+		{
+			bool footstep = (g_footsteps->value > 0) ? true : false;
+
+			if (xyspeed > WALKCYCLE_RUN_SPEED)
+				ent->client->bobtime += WALKCYCLE_FREQUENCY[0];
+			else
+			{
+				if (xyspeed > WALKCYCLE_WALK_SPEED)
+					ent->client->bobtime += WALKCYCLE_FREQUENCY[1];
+				else
+					ent->client->bobtime += WALKCYCLE_FREQUENCY[2];
+
+				if (g_footsteps->value == 1)
+					footstep = false;
+			}
+
+			/* reset walkcycle phase and trigger
+			   a footstep sound when happens */
+			if (ent->client->bobtime > 0.0f && ent->client->bobtime > M_PI * 1.0f)
+			{
+				ent->client->bobtime -= M_PI * 4.0f;
+				if (WALKCYCLE_FOOTSTEP_SOUND == true && footstep == true)
+					ent->s.event = EV_FOOTSTEP;
+			}
+			else if(ent->client->bobtime < 0.0f && ent->client->bobtime > -M_PI * 2.0f)
+			{
+				ent->client->bobtime += M_PI * 2.0f;
+				if (WALKCYCLE_FOOTSTEP_SOUND == true && footstep == true)
+					ent->s.event = EV_FOOTSTEP;
+			}
+		}
+		else
+		{
+			ent->client->bobtime = 0.0f;
+		}
+	}
+
+	/* gun bob */
+	if (GUN_BOB == true && WALKCYCLE == true)
+	{
+		const float waveform[3] = {
+			sinf(ent->client->bobtime * 2.0f),
+			sinf(ent->client->bobtime),
+			fabsf(sinf(ent->client->bobtime * 2.0f))
+		};
+
+		if (xyspeed > WALKCYCLE_RUN_SPEED)
+		{
+			ent->client->ps.gunangles[PITCH] = waveform[GUN_BOB_PITCH_WAVE[0]] * GUN_BOB_PITCH[0];
+			ent->client->ps.gunangles[YAW] = waveform[GUN_BOB_YAW_WAVE[0]] * GUN_BOB_YAW[0];
+			ent->client->ps.gunangles[ROLL] = waveform[GUN_BOB_ROLL_WAVE[0]] * GUN_BOB_ROLL[0];
+		}
+		if (xyspeed > WALKCYCLE_WALK_SPEED)
+		{
+			ent->client->ps.gunangles[PITCH] = waveform[GUN_BOB_PITCH_WAVE[1]] * GUN_BOB_PITCH[1];
+			ent->client->ps.gunangles[YAW] = waveform[GUN_BOB_YAW_WAVE[1]] * GUN_BOB_YAW[1];
+			ent->client->ps.gunangles[ROLL] = waveform[GUN_BOB_ROLL_WAVE[1]] * GUN_BOB_ROLL[1];
+		}
+		else
+		{
+			ent->client->ps.gunangles[PITCH] = waveform[GUN_BOB_PITCH_WAVE[2]] * GUN_BOB_PITCH[2];
+			ent->client->ps.gunangles[YAW] = waveform[GUN_BOB_YAW_WAVE[2]] * GUN_BOB_YAW[2];
+			ent->client->ps.gunangles[ROLL] = waveform[GUN_BOB_ROLL_WAVE[2]] * GUN_BOB_ROLL[2];
+		}
+	}
+	else
+	{
+		VectorClear(ent->client->ps.gunangles);
+	}
 
 	/* gun offset */
 	VectorClear(ent->client->ps.gunoffset);
@@ -1087,9 +1144,9 @@ ClientEndServerFrame(edict_t *ent)
 	for (i = 0; i < 3; i++)
 	{
 		/* gun_x / gun_y / gun_z are development tools */
-		ent->client->ps.gunoffset[i] += s_forward[i] * (gun_y->value);
-		ent->client->ps.gunoffset[i] += s_right[i] * gun_x->value;
-		ent->client->ps.gunoffset[i] += s_up[i] * (-gun_z->value);
+		ent->client->ps.gunoffset[i] += forward[i] * (gun_y->value);
+		ent->client->ps.gunoffset[i] += right[i] * gun_x->value;
+		ent->client->ps.gunoffset[i] += up[i] * (-gun_z->value);
 	}
 
 	/* determine the full screen color blend
@@ -1115,7 +1172,7 @@ ClientEndServerFrame(edict_t *ent)
 
 	G_SetClientSound(ent);
 
-	G_SetClientFrame(ent);
+	G_SetClientFrame(ent, xyspeed);
 
 	VectorCopy(ent->velocity, ent->client->oldvelocity);
 	VectorCopy(ent->client->ps.viewangles, ent->client->oldviewangles);
