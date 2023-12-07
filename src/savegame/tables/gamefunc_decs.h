@@ -137,13 +137,11 @@ extern void P_ProjectSource ( edict_t * ent , vec3_t distance , vec3_t forward ,
 extern void ClientEndServerFrame ( edict_t * ent ) ;
 extern void G_SetClientFrame ( edict_t * ent ) ;
 extern void G_SetClientSound ( edict_t * ent ) ;
-extern void G_SetClientEvent ( edict_t * ent ) ;
 extern void G_SetClientEffects ( edict_t * ent ) ;
 extern void P_WorldEffects ( void ) ;
 extern void P_FallingDamage ( edict_t * ent ) ;
 extern void SV_CalcBlend ( edict_t * ent ) ;
 extern void SV_AddBlend ( float r , float g , float b , float a , float * v_blend ) ;
-extern void SV_CalcGunOffset ( edict_t * ent ) ;
 extern void SV_CalcViewOffset ( edict_t * ent ) ;
 extern void P_DamageFeedback ( edict_t * player ) ;
 extern float SV_CalcRoll ( vec3_t angles , vec3_t velocity ) ;

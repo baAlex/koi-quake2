@@ -245,13 +245,6 @@ SV_CalcViewOffset(edict_t *ent)
 }
 
 void
-SV_CalcGunOffset(edict_t *ent)
-{
-	(void) ent;
-	/* I cannot remove functions, they are hardcoded to the savegame system */
-}
-
-void
 SV_AddBlend(float r, float g, float b, float a, float *v_blend)
 {
 	float a2, a3;
@@ -795,13 +788,6 @@ G_SetClientEffects(edict_t *ent)
 }
 
 void
-G_SetClientEvent(edict_t *ent)
-{
-	(void) ent;
-	/* I cannot remove functions, they are hardcoded to the savegame system */
-}
-
-void
 G_SetClientSound(edict_t *ent)
 {
 	char *weap;
@@ -1175,8 +1161,6 @@ ClientEndServerFrame(edict_t *ent)
 	}
 
 	G_CheckChaseStats(ent);
-
-	G_SetClientEvent(ent);
 
 	G_SetClientEffects(ent);
 
