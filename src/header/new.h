@@ -39,5 +39,11 @@ static const int GUN_BOB_ROLL_WAVE[3] = {1, 1, 1};
 // - 1 = sin(phase)
 // - 2 = abs(sin(phase * 2))
 
+// Gun offset (view)
+static const bool GUN_OFFSET_INERTIA = true;
+
+static const float GUN_OFFSET_INERTIA_SCALE[] = {(1.0f / WALKCYCLE_RUN_SPEED) * 0.5f,    // Forward
+                                                 (1.0f / WALKCYCLE_RUN_SPEED) * 1.0f,    // Side
+                                                 (1.0f / WALKCYCLE_RUN_SPEED) * -0.75f}; // Up/down
 
 #endif

@@ -224,17 +224,11 @@ P_DamageFeedback(edict_t *player)
 void
 SV_CalcViewOffset(edict_t *ent)
 {
-	float *angles;
 	vec3_t v;
-
-	/* base angles */
-	angles = ent->client->ps.kick_angles;
 
 	/* if dead, fix the angle */
 	if (ent->deadflag)
 	{
-		VectorClear(angles);
-
 		ent->client->ps.viewangles[ROLL] = 40;
 		ent->client->ps.viewangles[PITCH] = -15;
 		ent->client->ps.viewangles[YAW] = ent->client->killer_yaw;
@@ -1104,6 +1098,10 @@ ClientEndServerFrame(edict_t *ent)
 			ent->client->bobtime = 0.0f;
 		}
 	}
+	else
+	{
+		xyspeed = 0.0f;
+	}
 
 	/* gun bob */
 	if (GUN_BOB == true && WALKCYCLE == true)
@@ -1139,14 +1137,26 @@ ClientEndServerFrame(edict_t *ent)
 	}
 
 	/* gun offset */
-	VectorClear(ent->client->ps.gunoffset);
-
-	for (i = 0; i < 3; i++)
 	{
-		/* gun_x / gun_y / gun_z are development tools */
-		ent->client->ps.gunoffset[i] += forward[i] * (gun_y->value);
-		ent->client->ps.gunoffset[i] += right[i] * gun_x->value;
-		ent->client->ps.gunoffset[i] += up[i] * (-gun_z->value);
+		vec3_t inertia;
+		VectorClear(ent->client->ps.gunoffset);
+
+		if (GUN_OFFSET_INERTIA == true)
+		{
+			inertia[0] = DotProduct(forward, ent->velocity) * (-GUN_OFFSET_INERTIA_SCALE[0]);
+			inertia[1] = DotProduct(right, ent->velocity)   * (-GUN_OFFSET_INERTIA_SCALE[1]);
+			inertia[2] = DotProduct(up, ent->velocity)      * (-GUN_OFFSET_INERTIA_SCALE[2]);
+		}
+		else
+			VectorClear(inertia);
+
+		for (i = 0; i < 3; i++)
+		{
+			/* gun_x / gun_y / gun_z are development tools */
+			ent->client->ps.gunoffset[i] += forward[i] * (gun_y->value + inertia[0]);
+			ent->client->ps.gunoffset[i] += right[i] * (gun_x->value + inertia[1]);
+			ent->client->ps.gunoffset[i] += up[i] * (-gun_z->value + inertia[2]);
+		}
 	}
 
 	/* determine the full screen color blend
