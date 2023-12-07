@@ -28,30 +28,6 @@
 #include "../header/new.h"
 #include "../monster/misc/player.h"
 
-float
-SV_CalcRoll(vec3_t view_right, vec3_t angles, vec3_t velocity)
-{
-	float sign;
-	float side;
-	float value;
-
-	side = DotProduct(velocity, view_right);
-	sign = side < 0 ? -1 : 1;
-	side = fabs(side);
-
-	value = sv_rollangle->value;
-
-	if (side < sv_rollspeed->value)
-	{
-		side = side * value / sv_rollspeed->value;
-	}
-	else
-	{
-		side = value;
-	}
-
-	return side * sign;
-}
 
 /*
  * Handles color blends and view kicks
@@ -219,29 +195,6 @@ P_DamageFeedback(edict_t *player)
 	client->damage_armor = 0;
 	client->damage_parmor = 0;
 	client->damage_knockback = 0;
-}
-
-void
-SV_CalcViewOffset(edict_t *ent)
-{
-	vec3_t v;
-
-	/* if dead, fix the angle */
-	if (ent->deadflag)
-	{
-		ent->client->ps.viewangles[ROLL] = 40;
-		ent->client->ps.viewangles[PITCH] = -15;
-		ent->client->ps.viewangles[YAW] = ent->client->killer_yaw;
-	}
-
-	/* base origin */
-	VectorClear(v);
-
-	/* add view height */
-	v[2] += ent->viewheight;
-
-	/* done! */
-	VectorCopy(v, ent->client->ps.viewoffset);
 }
 
 void
@@ -983,21 +936,15 @@ newanim:
 void
 ClientEndServerFrame(edict_t *ent)
 {
-	vec3_t forward, right, up;
-	float xyspeed;
-	int i;
-
 	if (!ent)
-	{
 		return;
-	}
 
 	/* If the origin or velocity have changed since ClientThink(),
 	   update the pmove values. This will happen when the client
 	   is pushed by a bmodel or kicked by an explosion.
 	   If it wasn't updated here, the view position would lag a frame
 	   behind the body position when pushed -- "sinking into plats" */
-	for (i = 0; i < 3; i++)
+	for (int i = 0; i < 3; i++)
 	{
 		ent->client->ps.pmove.origin[i] = ent->s.origin[i] * 8.0;
 		ent->client->ps.pmove.velocity[i] = ent->velocity[i] * 8.0;
@@ -1013,36 +960,43 @@ ClientEndServerFrame(edict_t *ent)
 		return;
 	}
 
+	/* Keep view angles */
+	vec3_t forward, right, up;
 	AngleVectors(ent->client->v_angle, forward, right, up);
 
-	/* burn from lava, etc */
+	/* Burn from lava, etc */
 	P_WorldEffects(ent);
 
-	/* set model angles from view angles so other things in
+	/* Set model angles from view angles so other things in
 	   the world can tell which direction you are looking */
 	if (ent->client->v_angle[PITCH] > 180)
-	{
 		ent->s.angles[PITCH] = (-360 + ent->client->v_angle[PITCH]) / 3;
-	}
 	else
-	{
 		ent->s.angles[PITCH] = ent->client->v_angle[PITCH] / 3;
-	}
 
 	ent->s.angles[YAW] = ent->client->v_angle[YAW];
 	ent->s.angles[ROLL] = 0;
-	ent->s.angles[ROLL] = SV_CalcRoll(right, ent->s.angles, ent->velocity) * 4;
 
-	/* detect hitting the floor */
+	/* Detect hitting the floor */
 	P_FallingDamage(ent);
 
-	/* apply all the damage taken this frame */
+	/* Apply all the damage taken this frame */
 	P_DamageFeedback(ent);
 
-	/* determine the view offsets */
-	SV_CalcViewOffset(ent);
+	/* If dead, fix view angle */
+	if (ent->deadflag)
+	{
+		ent->client->ps.viewangles[ROLL] = 40.f;
+		ent->client->ps.viewangles[PITCH] = -15.f;
+		ent->client->ps.viewangles[YAW] = ent->client->killer_yaw;
+	}
 
-	/* walkcycle */
+	/* Add view height */
+	VectorClear(ent->client->ps.viewoffset);
+	ent->client->ps.viewoffset[2] += ent->viewheight;
+
+	/* Walkcycle */
+	float xyspeed;
 	if (WALKCYCLE == true)
 	{
 		xyspeed = sqrtf(powf(ent->velocity[0], 2.0f) + powf(ent->velocity[1], 2.0f));
@@ -1060,12 +1014,13 @@ ClientEndServerFrame(edict_t *ent)
 				else
 					ent->client->bobtime += WALKCYCLE_FREQUENCY[2];
 
+				/* We need to honor 'g_footsteps' cvar, that is
+				   why such weird if/else arrange */
 				if (g_footsteps->value == 1)
 					footstep = false;
 			}
 
-			/* reset walkcycle phase and trigger
-			   a footstep sound when happens */
+			/* Reset walkcycle phase and trigger a footstep sound when happens */
 			if (ent->client->bobtime > 0.0f && ent->client->bobtime > M_PI * 1.0f)
 			{
 				ent->client->bobtime -= M_PI * 4.0f;
@@ -1089,12 +1044,12 @@ ClientEndServerFrame(edict_t *ent)
 		xyspeed = 0.0f;
 	}
 
-	/* gun bob */
+	/* Gun bob */
 	if (GUN_BOB == true && WALKCYCLE == true)
 	{
 		const float waveform[3] = {
 			sinf(ent->client->bobtime * 2.0f),
-			sinf(ent->client->bobtime),
+			sinf(ent->client->bobtime * 1.0f),
 			fabsf(sinf(ent->client->bobtime * 2.0f))
 		};
 
@@ -1122,7 +1077,7 @@ ClientEndServerFrame(edict_t *ent)
 		VectorClear(ent->client->ps.gunangles);
 	}
 
-	/* gun offset */
+	/* Gun offset inertia */
 	{
 		vec3_t inertia;
 		VectorClear(ent->client->ps.gunoffset);
@@ -1136,7 +1091,7 @@ ClientEndServerFrame(edict_t *ent)
 		else
 			VectorClear(inertia);
 
-		for (i = 0; i < 3; i++)
+		for (int i = 0; i < 3; i++)
 		{
 			/* gun_x / gun_y / gun_z are development tools */
 			ent->client->ps.gunoffset[i] += forward[i] * (gun_y->value + inertia[0]);
@@ -1145,31 +1100,22 @@ ClientEndServerFrame(edict_t *ent)
 		}
 	}
 
-	/* determine the full screen color blend
+	/* Determine the full screen color blend
 	   must be after viewoffset, so eye contents
 	   can be accurately determined */
 	SV_CalcBlend(ent);
 
-	/* chase cam stuff */
+	/* Chase cam stuff */
 	if (ent->client->resp.spectator)
-	{
 		G_SetSpectatorStats(ent);
-	}
 	else
-	{
 		G_SetStats(ent);
-	}
 
+	/* More stuff */
 	G_CheckChaseStats(ent);
-
 	G_SetClientEffects(ent);
-
 	G_SetClientSound(ent);
-
 	G_SetClientFrame(ent, xyspeed);
-
-	VectorCopy(ent->velocity, ent->client->oldvelocity);
-	VectorCopy(ent->client->ps.viewangles, ent->client->oldviewangles);
 
 	if (!(level.framenum & 31))
 	{
@@ -1189,10 +1135,14 @@ ClientEndServerFrame(edict_t *ent)
 		}
 	}
 
-	/* if the inventory is up, update it */
+	/* If the inventory is up, update it */
 	if (ent->client->showinventory)
 	{
 		InventoryMessage(ent);
 		gi.unicast(ent, false);
 	}
+
+	/* Keep some things for next call */
+	VectorCopy(ent->velocity, ent->client->oldvelocity);
+	VectorCopy(ent->client->ps.viewangles, ent->client->oldviewangles);
 }
