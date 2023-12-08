@@ -938,8 +938,7 @@ struct gclient_s
 	int old_waterlevel;
 	int breather_sound;
 
-	int machinegun_shots; /* for weapon raising */
-
+	float recoil; /* client.c, weapon.c, for weapon animation and bullet spread */
 	int prev_health; /* client.c, to regenerate health */
 	float wait2; /* view.c, to flash the screen if health is critical */
 	float gun_angle_inertia[3]; /* view.c, to apply inertia to gun model */

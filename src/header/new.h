@@ -93,4 +93,19 @@ static const float GUN_OFFSET_INERTIA_SCALE[] = {(1.0f / WALKCYCLE_RUN_SPEED) * 
                                                  (1.0f / WALKCYCLE_RUN_SPEED) * 1.0f,    // Side
                                                  (1.0f / WALKCYCLE_RUN_SPEED) * -0.75f}; // Up/down
 
+
+// Gun offset recoil (view.c)
+// ==========================
+static const bool GUN_OFFSET_RECOIL = true; // WALKCYCLE not required, but helps
+
+static const float GUN_OFFSET_RECOIL_RANDON_FORWARD[3] = {0.75f, 0.75f, 0.5f}; // Running, walking, otherwise
+static const float GUN_OFFSET_RECOIL_RANDON_SIDE[3] = {0.75F, 0.5F, 0.3F};
+static const float GUN_OFFSET_RECOIL_RANDON_UP[3] = {0.75F, 0.5F, 0.3F};
+
+static const float GUN_OFFSET_RECOIL_PER_WEAPON[3] = {1.75F, 1.5F, 1.0F}; // Running, walking, otherwise
+
+// All weapons share the same random values since the game being updated
+// at 10 hz and being aggressive with compression (when sending data to
+// the client), let us with little space of artistic choice
+
 #endif

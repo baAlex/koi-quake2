@@ -360,7 +360,7 @@ ChangeWeapon(edict_t *ent)
 	ent->client->pers.lastweapon = ent->client->pers.weapon;
 	ent->client->pers.weapon = ent->client->newweapon;
 	ent->client->newweapon = NULL;
-	ent->client->machinegun_shots = 0;
+	ent->client->recoil = 0.0f; /* baAlex, TODO */
 
 	/* set visible model */
 	if (ent->s.modelindex == 255)
@@ -620,6 +620,9 @@ Weapon_Generic(edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
 		return;
 	}
 
+	if (ent->client->weaponstate != WEAPON_FIRING) /* baAlex, TODO */
+		ent->client->recoil = 0.0f;
+
 	if (ent->client->weaponstate == WEAPON_DROPPING)
 	{
 		if (ent->client->ps.gunframe >= FRAME_DEACTIVATE_LAST - change_speed + 1)
@@ -746,6 +749,11 @@ Weapon_Generic(edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FIRE_LAST,
 					gi.sound(ent, CHAN_ITEM, gi.soundindex(
 								"items/damage3.wav"), 1, ATTN_NORM, 0);
 				}
+
+				/* raise the gun */ /* baAlex, TODO */
+				ent->client->recoil += 0.1f;
+				if (ent->client->recoil > 3.0f)
+					ent->client->recoil = 3.0f;
 
 				fire(ent);
 				break;
@@ -1312,7 +1320,6 @@ Machinegun_Fire(edict_t *ent)
 
 	if (!(ent->client->buttons & BUTTON_ATTACK))
 	{
-		ent->client->machinegun_shots = 0;
 		ent->client->ps.gunframe++;
 		return;
 	}
@@ -1354,19 +1361,7 @@ Machinegun_Fire(edict_t *ent)
 	}
 
 	ent->client->kick_origin[0] = crandom() * 0.35;
-	ent->client->kick_angles[0] = ent->client->machinegun_shots * -1.5;
 
-	/* raise the gun as it is firing */
-	if (!(deathmatch->value || g_machinegun_norecoil->value))
-	{
-		ent->client->machinegun_shots++;
-
-		if (ent->client->machinegun_shots > 9)
-		{
-			ent->client->machinegun_shots = 9;
-		}
-	}
-	
 	/* get start / end positions */
 	VectorAdd(ent->client->v_angle, ent->client->kick_angles, angles);
 	AngleVectors(angles, forward, right, NULL);
@@ -1697,9 +1692,9 @@ weapon_supershotgun_fire(edict_t *ent)
 	v[YAW] = ent->client->v_angle[YAW] - 5;
 	v[ROLL] = ent->client->v_angle[ROLL];
 	AngleVectors(v, forward, NULL, NULL);
-	
+
 	if (aimfix->value)
-	{	
+	{
 		AngleVectors(v, forward, right, NULL);
 
 		VectorScale(forward, -2, ent->client->kick_origin);
@@ -1707,17 +1702,17 @@ weapon_supershotgun_fire(edict_t *ent)
 
 		VectorSet(offset, 0, 8, ent->viewheight - 8);
 		P_ProjectSource(ent, offset, forward, right, start);
-	}	
-	
+	}
+
 	fire_shotgun(ent, start, forward, damage, kick,
 			DEFAULT_SHOTGUN_HSPREAD, DEFAULT_SHOTGUN_VSPREAD,
 			DEFAULT_SSHOTGUN_COUNT / 2, MOD_SSHOTGUN);
-	
+
 	v[YAW] = ent->client->v_angle[YAW] + 5;
 	AngleVectors(v, forward, NULL, NULL);
-	
+
 	if (aimfix->value)
-	{	
+	{
 		AngleVectors(v, forward, right, NULL);
 
 		VectorScale(forward, -2, ent->client->kick_origin);
@@ -1725,8 +1720,8 @@ weapon_supershotgun_fire(edict_t *ent)
 
 		VectorSet(offset, 0, 8, ent->viewheight - 8);
 		P_ProjectSource(ent, offset, forward, right, start);
-	}	
-	
+	}
+
 	fire_shotgun(ent, start, forward, damage, kick,
 			DEFAULT_SHOTGUN_HSPREAD, DEFAULT_SHOTGUN_VSPREAD,
 			DEFAULT_SSHOTGUN_COUNT / 2, MOD_SSHOTGUN);

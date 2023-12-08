@@ -1081,30 +1081,55 @@ ClientEndServerFrame(edict_t *ent)
 		VectorAdd(angle, ent->client->ps.gunangles, ent->client->ps.gunangles);
 	}
 
-	/* Gun offset inertia */
+	/* Gun offset */
 	{
-		vec3_t inertia;
-		VectorClear(ent->client->ps.gunoffset);
+		vec3_t offset;
 
+		/* Inertia*/
 		if (GUN_OFFSET_INERTIA == true)
 		{
 			/* Proportional to velocity, no lowpass filter needed */
-			inertia[0] = DotProduct(forward, ent->velocity) * (-GUN_OFFSET_INERTIA_SCALE[0]);
-			inertia[1] = DotProduct(right, ent->velocity)   * (-GUN_OFFSET_INERTIA_SCALE[1]);
-			inertia[2] = DotProduct(up, ent->velocity)      * (-GUN_OFFSET_INERTIA_SCALE[2]);
+			offset[0] = DotProduct(forward, ent->velocity) * (-GUN_OFFSET_INERTIA_SCALE[0]);
+			offset[1] = DotProduct(right, ent->velocity)   * (-GUN_OFFSET_INERTIA_SCALE[1]);
+			offset[2] = DotProduct(up, ent->velocity)      * (-GUN_OFFSET_INERTIA_SCALE[2]);
 
 			if (ent->client->pers.hand == LEFT_HANDED)
-				inertia[1] = -inertia[1];
+				offset[1] = -offset[1];
 		}
 		else
-			VectorClear(inertia);
+			VectorClear(offset);
 
+		/* Recoil */
+		if (GUN_OFFSET_RECOIL == true && ent->client->recoil > 0.0f)
+		{
+			if (xyspeed > WALKCYCLE_RUN_SPEED)
+			{
+				offset[0] = crandom() * GUN_OFFSET_RECOIL_RANDON_FORWARD[0] - ent->client->recoil * GUN_OFFSET_RECOIL_PER_WEAPON[0];
+				offset[1] = crandom() * GUN_OFFSET_RECOIL_RANDON_SIDE[0];
+				offset[2] = crandom() * GUN_OFFSET_RECOIL_RANDON_UP[0];
+			}
+			else if (xyspeed > WALKCYCLE_WALK_SPEED)
+			{
+				offset[0] = crandom() * GUN_OFFSET_RECOIL_RANDON_FORWARD[1] - ent->client->recoil * GUN_OFFSET_RECOIL_PER_WEAPON[1];
+				offset[1] = crandom() * GUN_OFFSET_RECOIL_RANDON_SIDE[1];
+				offset[2] = crandom() * GUN_OFFSET_RECOIL_RANDON_UP[1];
+			}
+			else
+			{
+				offset[0] = crandom() * GUN_OFFSET_RECOIL_RANDON_FORWARD[2] - ent->client->recoil * GUN_OFFSET_RECOIL_PER_WEAPON[2];
+				offset[1] = crandom() * GUN_OFFSET_RECOIL_RANDON_SIDE[2];
+				offset[2] = crandom() * GUN_OFFSET_RECOIL_RANDON_UP[2];
+			}
+		}
+
+		/* Add things together */
+		VectorClear(ent->client->ps.gunoffset);
 		for (int i = 0; i < 3; i++)
 		{
 			/* gun_x / gun_y / gun_z are development tools */
-			ent->client->ps.gunoffset[i] += forward[i] * (gun_y->value + inertia[0]);
-			ent->client->ps.gunoffset[i] += right[i] * (gun_x->value + inertia[1]);
-			ent->client->ps.gunoffset[i] += up[i] * (-gun_z->value + inertia[2]);
+			ent->client->ps.gunoffset[i] += forward[i] * (gun_y->value + offset[0]);
+			ent->client->ps.gunoffset[i] += right[i] * (gun_x->value + offset[1]);
+			ent->client->ps.gunoffset[i] += up[i] * (-gun_z->value + offset[2]);
 		}
 	}
 
