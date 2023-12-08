@@ -1,10 +1,10 @@
 Quake 2 Me
 ==========
 
-This is a mod/addon that changes Quake 2 gameplay mechanics just for
-fun and experimentation. Regarding the name it doesn't mean anything (yet).
+This is a mod that changes Quake 2 gameplay mechanics just for fun and
+experimentation.
 
-While compatible with any Quake II client that uses the original unaltered
+While compatible with any Quake 2 client that uses the original unaltered
 mod API, the "Yamagi Quake 2 Client" is highly recommended to play this
 addon. For more information visit http://www.yamagi.org/quake2.
 

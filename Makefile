@@ -264,7 +264,7 @@ Q2ME_OBJS_ = \
 	src/player/hud.o \
 	src/player/trail.o \
 	src/player/view.o \
-	src/player/weapon.o \
+	src/player/weapons.o \
 	src/savegame/savegame.o \
 	src/shared/flash.o \
 	src/shared/rand.o \
