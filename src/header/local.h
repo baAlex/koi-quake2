@@ -939,8 +939,10 @@ struct gclient_s
 	int breather_sound;
 
 	int machinegun_shots; /* for weapon raising */
+
 	int prev_health; /* client.c, to regenerate health */
 	float wait2; /* view.c, to flash the screen if health is critical */
+	float gun_angle_inertia[3]; /* view.c, to apply inertia to gun model */
 
 	/* animation vars */
 	int anim_end;
@@ -1094,7 +1096,7 @@ struct edict_s
 	float attenuation;
 
 	/* timing variables */
-	float wait;
+	float wait; /* client.c, to regenerate health */
 	float delay; /* before firing targets */
 	float random;
 

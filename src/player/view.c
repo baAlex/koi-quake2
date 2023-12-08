@@ -876,6 +876,27 @@ newanim:
 	}
 }
 
+
+static float sAngleSubtract(float a2, float a1)
+{
+	if (a1 - a2 > 180.0f)
+		a1 -= 360.0f;
+	if (a1 - a2 < -180.0f)
+		a1 += 360.0f;
+
+	return a1 - a2;
+}
+
+static float sAngleAdd(float a2, float a1)
+{
+	if (a1 + a2 > 180.0f)
+		a1 -= 360.0f;
+	if (a1 + a2 < -180.0f)
+		a1 += 360.0f;
+
+	return a1 + a2;
+}
+
 /*
  * Called for each player at the end of
  * the server frame and right after spawning
@@ -1024,6 +1045,42 @@ ClientEndServerFrame(edict_t *ent)
 		VectorClear(ent->client->ps.gunangles);
 	}
 
+	/* Gun angle inertia */
+	if (GUN_ANGLE_INERTIA == true)
+	{
+		vec3_t angle;
+		VectorCopy(ent->client->v_angle, angle); /* We start with a 'where the weapon should aim' */
+		                                         /* (is easier) */
+
+		for (int i = 0; i < 3; i++)
+		{
+			float* inertia = ent->client->gun_angle_inertia + i;
+
+			/* And then a simple lowpass do the job */
+			inertia[i] = LerpAngle(angle[i], inertia[i], GUN_ANGLE_INERTIA_Q);
+			const float inertia_delta = sAngleSubtract(angle[i], inertia[i]);
+
+			/* Don't let it be to slow tho */
+			if (inertia_delta > GUN_ANGLE_INERTIA_CLAMP)
+				inertia[i] = sAngleAdd(GUN_ANGLE_INERTIA_CLAMP, angle[i]);
+			else if (inertia_delta < -GUN_ANGLE_INERTIA_CLAMP)
+				inertia[i] = sAngleSubtract(GUN_ANGLE_INERTIA_CLAMP, angle[i]);
+
+			/* Done this axis */
+			angle[i] = inertia[i];
+		}
+
+		/* Finally convert the angle to a delta, the engine/client already knows
+		   where the gun model should aim, what it's asking us is... well, a delta
+		   to add to that angle */
+		VectorSubtract(angle, ent->client->v_angle, angle);
+		if (ent->client->pers.hand == LEFT_HANDED)
+			angle[1] = -angle[1];
+
+		/* Of course, we add such delta to the already computed gun angles */
+		VectorAdd(angle, ent->client->ps.gunangles, ent->client->ps.gunangles);
+	}
+
 	/* Gun offset inertia */
 	{
 		vec3_t inertia;
@@ -1031,9 +1088,13 @@ ClientEndServerFrame(edict_t *ent)
 
 		if (GUN_OFFSET_INERTIA == true)
 		{
+			/* Proportional to velocity, no lowpass filter needed */
 			inertia[0] = DotProduct(forward, ent->velocity) * (-GUN_OFFSET_INERTIA_SCALE[0]);
 			inertia[1] = DotProduct(right, ent->velocity)   * (-GUN_OFFSET_INERTIA_SCALE[1]);
 			inertia[2] = DotProduct(up, ent->velocity)      * (-GUN_OFFSET_INERTIA_SCALE[2]);
+
+			if (ent->client->pers.hand == LEFT_HANDED)
+				inertia[1] = -inertia[1];
 		}
 		else
 			VectorClear(inertia);
