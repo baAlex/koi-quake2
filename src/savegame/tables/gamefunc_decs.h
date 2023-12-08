@@ -142,7 +142,6 @@ extern void P_WorldEffects ( void ) ;
 extern void P_FallingDamage ( edict_t * ent ) ;
 extern void SV_CalcBlend ( edict_t * ent ) ;
 extern void SV_AddBlend ( float r , float g , float b , float a , float * v_blend ) ;
-extern void P_DamageFeedback ( edict_t * player ) ;
 extern edict_t * PlayerTrail_LastSpot ( void ) ;
 extern edict_t * PlayerTrail_PickNext ( edict_t * self ) ;
 extern edict_t * PlayerTrail_PickFirst ( edict_t * self ) ;

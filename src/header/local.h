@@ -940,6 +940,7 @@ struct gclient_s
 
 	int machinegun_shots; /* for weapon raising */
 	int prev_health; /* client.c, to regenerate health */
+	float wait2; /* view.c, to flash the screen if health is critical */
 
 	/* animation vars */
 	int anim_end;

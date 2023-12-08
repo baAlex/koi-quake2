@@ -142,7 +142,6 @@
 {"P_FallingDamage", (byte *)P_FallingDamage},
 {"SV_CalcBlend", (byte *)SV_CalcBlend},
 {"SV_AddBlend", (byte *)SV_AddBlend},
-{"P_DamageFeedback", (byte *)P_DamageFeedback},
 {"PlayerTrail_LastSpot", (byte *)PlayerTrail_LastSpot},
 {"PlayerTrail_PickNext", (byte *)PlayerTrail_PickNext},
 {"PlayerTrail_PickFirst", (byte *)PlayerTrail_PickFirst},

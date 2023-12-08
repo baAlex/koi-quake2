@@ -29,68 +29,115 @@
 #include "../monster/misc/player.h"
 
 
-/*
- * Handles color blends and view kicks
- */
-void
-P_DamageFeedback(edict_t *player)
+static void sPlayPainSound(edict_t* ent)
 {
-	gclient_t *client;
-	float realcount, count;
-	vec3_t v;
-	int r, l;
-	static vec3_t power_color = {0.0, 1.0, 0.0};
-	static vec3_t acolor = {1.0, 1.0, 1.0};
-	static vec3_t bcolor = {1.0, 0.0, 0.0};
+	/* 'pain_debounce_time' is shared between multiple player sounds,
+	    acting like a voice allocator, as all sounds use the same channel */
+	if (ent->health <= 0 || level.time < ent->pain_debounce_time)
+		return;
 
-	if (!player)
+	int l;
+	if (ent->health < 25)
+		l = 25;
+	else if (ent->health < 50)
+		l = 50;
+	else if (ent->health < 75)
+		l = 75;
+	else
+		l = 100;
+
+	const int r = 1 + (randk() & 1);
+	gi.sound(ent, CHAN_VOICE, gi.soundindex(va("*pain%i_%i.wav", l, r)), 1, ATTN_NORM, 0);
+	ent->pain_debounce_time = level.time + 0.7f;
+}
+
+static void sPlayBurnSound(edict_t* ent)
+{
+	if (ent->health <= 0 || level.time < ent->pain_debounce_time) /* Like here */
+		return;
+
+	if (randk() & 1)
 	{
+		gi.sound(ent, CHAN_VOICE,
+		gi.soundindex("player/burn1.wav"), 1, ATTN_NORM, 0);
+	}
+	else
+	{
+		gi.sound(ent, CHAN_VOICE,
+		gi.soundindex("player/burn2.wav"), 1, ATTN_NORM, 0);
+	}
+
+	ent->pain_debounce_time = level.time + 1.0f;
+}
+
+static void sPlayComputerSound(edict_t* ent)
+{
+	/* Here we wait, but without setting the timer later, thrus
+	   lowering priority of this sound */
+	if (level.time > ent->pain_debounce_time)
+		gi.sound(ent, CHAN_VOICE, gi.soundindex("misc/pc_up.wav"), 1, ATTN_STATIC, 0);
+}
+
+
+static inline float sDamageFlashAlphaFormula(const edict_t* ent)
+{
+	/* It has to transmit current health in a plain simpler manner */
+	return max((float)(ent->max_health - ent->health) / (float)(ent->max_health), DAMAGE_FLASH_MIN);
+}
+
+
+static void sDamageFeedback(edict_t* ent)
+{
+	/* Clear Hud flashes, just in case */ /* baAlex, TODO: move to hud.c */
+	ent->client->ps.stats[STAT_FLASHES] = 0;
+
+	/* Is player in a mode where feedback doesn't matter? */
+	if ((ent->flags & FL_GODMODE) || ent->client->invincible_framenum > level.framenum)
+	{
+		ent->client->damage_blood = 0; /* Clear damage */
 		return;
 	}
 
-	/* death/gib sound is now aggregated and played here */
-	if (player->sounds)
+	/* Flash screen if health is critical */
+	if (ent->health > 0 && ent->health < CRITICAL_HEALTH_FLASH_AT &&
+	    ent->client->wait2 < level.time)
 	{
-		gi.sound (player, CHAN_VOICE, player->sounds, 1, ATTN_NORM, 0);
-		player->sounds = 0;
+		ent->client->damage_alpha = max(ent->client->damage_alpha, CRITICAL_HEALTH_FLASH);
+		ent->client->wait2 = level.time + CRITICAL_HEALTH_FLASH_DELAY;
 	}
 
-	client = player->client;
+	/* Is there damage to react to? */
+	if (ent->client->damage_blood <= 0)
+		return;
 
-	/* flash the backgrounds behind the status numbers */
-	client->ps.stats[STAT_FLASHES] = 0;
+	sPlayPainSound(ent);
+	ent->client->ps.stats[STAT_FLASHES] |= 1; /* Flash the Hud */ /* baAlex, TODO: move to hud.c */
+	ent->client->damage_alpha = max(ent->client->damage_alpha, sDamageFlashAlphaFormula(ent));
 
-	if (client->damage_blood)
+	/* Clear damage */
+	ent->client->damage_blood = 0;
+	ent->client->damage_armor = 0;      /* baAlex, TODO: Remove */
+	ent->client->damage_parmor = 0;     /* Ditto */
+	ent->client->damage_knockback = 0;  /* Ditto */
+
+	/* Death/gib sound is now aggregated and played here */
+	/*if (ent->sounds)
 	{
-		client->ps.stats[STAT_FLASHES] |= 1;
-	}
+		gi.sound (ent, CHAN_VOICE, ent->sounds, 1, ATTN_NORM, 0);
+		ent->sounds = 0;
+	}*/
 
-	if (client->damage_armor && !(player->flags & FL_GODMODE) &&
-		(client->invincible_framenum <= level.framenum))
+	/* Start a pain animation if still in the player model */
+	if ((ent->client->anim_priority < ANIM_PAIN) && (ent->s.modelindex == 255))
 	{
-		client->ps.stats[STAT_FLASHES] |= 2;
-	}
+		static int i; /* baAlex, dear god, FIXME! */
 
-	/* total points of damage shot at the player this frame */
-	count =
-		(client->damage_blood + client->damage_armor + client->damage_parmor);
+		ent->client->anim_priority = ANIM_PAIN;
 
-	if (count == 0)
-	{
-		return; /* didn't take any damage */
-	}
-
-	/* start a pain animation if still in the player model */
-	if ((client->anim_priority < ANIM_PAIN) && (player->s.modelindex == 255))
-	{
-		static int i;
-
-		client->anim_priority = ANIM_PAIN;
-
-		if (client->ps.pmove.pm_flags & PMF_DUCKED)
+		if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
 		{
-			player->s.frame = FRAME_crpain1 - 1;
-			client->anim_end = FRAME_crpain4;
+			ent->s.frame = FRAME_crpain1 - 1;
+			ent->client->anim_end = FRAME_crpain4;
 		}
 		else
 		{
@@ -99,102 +146,20 @@ P_DamageFeedback(edict_t *player)
 			switch (i)
 			{
 				case 0:
-					player->s.frame = FRAME_pain101 - 1;
-					client->anim_end = FRAME_pain104;
+					ent->s.frame = FRAME_pain101 - 1;
+					ent->client->anim_end = FRAME_pain104;
 					break;
 				case 1:
-					player->s.frame = FRAME_pain201 - 1;
-					client->anim_end = FRAME_pain204;
+					ent->s.frame = FRAME_pain201 - 1;
+					ent->client->anim_end = FRAME_pain204;
 					break;
 				case 2:
-					player->s.frame = FRAME_pain301 - 1;
-					client->anim_end = FRAME_pain304;
+					ent->s.frame = FRAME_pain301 - 1;
+					ent->client->anim_end = FRAME_pain304;
 					break;
 			}
 		}
 	}
-
-	realcount = count;
-
-	if (count < 10)
-	{
-		count = 10; /* always make a visible effect */
-	}
-
-	/* play an apropriate pain sound */
-	if ((level.time > player->pain_debounce_time) &&
-		!(player->flags & FL_GODMODE) &&
-		(client->invincible_framenum <= level.framenum) &&
-		player->health > 0)
-	{
-		r = 1 + (randk() & 1);
-		player->pain_debounce_time = level.time + 0.7;
-
-		if (player->health < 25)
-		{
-			l = 25;
-		}
-		else if (player->health < 50)
-		{
-			l = 50;
-		}
-		else if (player->health < 75)
-		{
-			l = 75;
-		}
-		else
-		{
-			l = 100;
-		}
-
-		gi.sound(player, CHAN_VOICE, gi.soundindex(va("*pain%i_%i.wav",
-								l, r)), 1, ATTN_NORM, 0);
-	}
-
-	/* the total alpha of the blend is always proportional to count */
-	if (client->damage_alpha < 0)
-	{
-		client->damage_alpha = 0;
-	}
-
-	client->damage_alpha += count * 0.01;
-
-	if (client->damage_alpha < 0.2)
-	{
-		client->damage_alpha = 0.2;
-	}
-
-	if (client->damage_alpha > 0.6)
-	{
-		client->damage_alpha = 0.6; /* don't go too saturated */
-	}
-
-	/* the color of the blend will vary based
-	   on how much was absorbed by different armors */
-	VectorClear(v);
-
-	if (client->damage_parmor)
-	{
-		VectorMA(v, (float)client->damage_parmor / realcount, power_color, v);
-	}
-
-	if (client->damage_armor)
-	{
-		VectorMA(v, (float)client->damage_armor / realcount, acolor, v);
-	}
-
-	if (client->damage_blood)
-	{
-		VectorMA(v, (float)client->damage_blood / realcount, bcolor, v);
-	}
-
-	VectorCopy(v, client->damage_blend);
-
-	/* clear totals */
-	client->damage_blood = 0;
-	client->damage_armor = 0;
-	client->damage_parmor = 0;
-	client->damage_knockback = 0;
 }
 
 void
@@ -324,37 +289,33 @@ SV_CalcBlend(edict_t *ent)
 		}
 	}
 
-	/* add for damage */
+	/* Screen blend */
 	if (ent->client->damage_alpha > 0)
 	{
-		SV_AddBlend(ent->client->damage_blend[0],
-				ent->client->damage_blend[1],
-				ent->client->damage_blend[2],
-				ent->client->damage_alpha,
-				ent->client->ps.blend);
+		ent->client->damage_alpha = min(ent->client->damage_alpha, DAMAGE_FLASH_MAX);
+		SV_AddBlend(DAMAGE_FLASH_COLOR[0], DAMAGE_FLASH_COLOR[1], DAMAGE_FLASH_COLOR[2],
+		            ent->client->damage_alpha, ent->client->ps.blend);
 	}
 
 	if (ent->client->bonus_alpha > 0)
 	{
-		SV_AddBlend(0.85, 0.7, 0.3, ent->client->bonus_alpha,
-				ent->client->ps.blend);
+		SV_AddBlend(0.85, 0.7, 0.3, ent->client->bonus_alpha, ent->client->ps.blend);
 	}
 
-	/* drop the damage value */
-	ent->client->damage_alpha -= 0.06;
+	/* Drop damage value */
+	if (ent->health < CRITICAL_HEALTH_FLASH_AT)
+		ent->client->damage_alpha -= CRITICAL_HEALTH_DAMAGE_FLASH_FADE_OUT;
+	else
+		ent->client->damage_alpha -= DAMAGE_FLASH_FADE_OUT;
 
 	if (ent->client->damage_alpha < 0)
-	{
 		ent->client->damage_alpha = 0;
-	}
 
-	/* drop the bonus value */
+	/* Drop bonus value */
 	ent->client->bonus_alpha -= 0.1;
 
 	if (ent->client->bonus_alpha < 0)
-	{
 		ent->client->bonus_alpha = 0;
-	}
 }
 
 void
@@ -446,7 +407,7 @@ P_FallingDamage(edict_t *ent)
 			}
 		}
 
-		ent->pain_debounce_time = level.time; /* no normal pain sound */
+		/* ent->pain_debounce_time = level.time; */ /* baAlex, TODO: check how this interact with above code */
 		damage = (delta - 30) / 2;
 
 		if (damage < 1)
@@ -612,7 +573,7 @@ P_WorldEffects(edict_t *ent)
 							gi.soundindex("*gurp2.wav"), 1, ATTN_NORM, 0);
 				}
 
-				ent->pain_debounce_time = level.time;
+				/*ent->pain_debounce_time = level.time;*/ /* baAlex, TODO: check how this interact with above code */
 
 				T_Damage(ent, world, world, vec3_origin,
 						ent->s.origin, vec3_origin,
@@ -632,23 +593,10 @@ P_WorldEffects(edict_t *ent)
 	{
 		if (ent->watertype & CONTENTS_LAVA)
 		{
-			if ((ent->health > 0) &&
-				(ent->pain_debounce_time <= level.time) &&
-				(ent->client->invincible_framenum < level.framenum) &&
+			if ((ent->client->invincible_framenum < level.framenum) &&
 				!(ent->flags & FL_GODMODE))
 			{
-				if (randk() & 1)
-				{
-					gi.sound(ent, CHAN_VOICE,
-							gi.soundindex("player/burn1.wav"), 1, ATTN_NORM, 0);
-				}
-				else
-				{
-					gi.sound(ent, CHAN_VOICE,
-							gi.soundindex("player/burn2.wav"), 1, ATTN_NORM, 0);
-				}
-
-				ent->pain_debounce_time = level.time + 1;
+				sPlayBurnSound(ent);
 			}
 
 			if (envirosuit) /* take 1/3 damage with envirosuit */
@@ -761,8 +709,7 @@ G_SetClientSound(edict_t *ent)
 		(ent->client->pers.helpchanged <= 3) && !(level.framenum & 63))
 	{
 		ent->client->pers.helpchanged++;
-		gi.sound(ent, CHAN_VOICE, gi.soundindex(
-						"misc/pc_up.wav"), 1, ATTN_STATIC, 0);
+		sPlayComputerSound(ent);
 	}
 
 	if (ent->client->pers.weapon)
@@ -980,8 +927,8 @@ ClientEndServerFrame(edict_t *ent)
 	/* Detect hitting the floor */
 	P_FallingDamage(ent);
 
-	/* Apply all the damage taken this frame */
-	P_DamageFeedback(ent);
+	/* Translate damage into sounds and visuals */
+	sDamageFeedback(ent);
 
 	/* If dead, fix view angle */
 	if (ent->deadflag)
