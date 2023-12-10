@@ -105,7 +105,6 @@
 {"Drop_Weapon", (byte *)Drop_Weapon},
 {"Use_Weapon", (byte *)Use_Weapon},
 {"Think_Weapon", (byte *)Think_Weapon},
-{"ChangeWeapon", (byte *)ChangeWeapon},
 {"Pickup_Weapon", (byte *)Pickup_Weapon},
 {"PlayerNoise", (byte *)PlayerNoise},
 {"ClientEndServerFrame", (byte *)ClientEndServerFrame},

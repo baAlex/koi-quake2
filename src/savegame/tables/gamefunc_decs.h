@@ -105,7 +105,6 @@ extern void RotatePointAroundVector ( vec3_t dst , const vec3_t dir , const vec3
 extern void Drop_Weapon ( edict_t * ent , gitem_t * item ) ;
 extern void Use_Weapon ( edict_t * ent , gitem_t * item ) ;
 extern void Think_Weapon ( edict_t * ent ) ;
-extern void ChangeWeapon ( edict_t * ent ) ;
 extern qboolean Pickup_Weapon ( edict_t * ent , edict_t * other ) ;
 extern void PlayerNoise ( edict_t * who , vec3_t where , int type ) ;
 extern void ClientEndServerFrame ( edict_t * ent ) ;

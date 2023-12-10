@@ -619,9 +619,9 @@ gitem_t *FindItemByClassname(char *classname);
 
 edict_t *Drop_Item(edict_t *ent, gitem_t *item);
 void SetRespawn(edict_t *ent, float delay);
-void ChangeWeapon(edict_t *ent);
 void SpawnItem(edict_t *ent, gitem_t *item);
 void Think_Weapon(edict_t *ent);
+void Use_Weapon(edict_t *ent, gitem_t *item);
 int ArmorIndex(edict_t *ent);
 int PowerArmorType(edict_t *ent);
 gitem_t *GetItemByIndex(int index);
@@ -921,10 +921,10 @@ struct gclient_s
 
 	float killer_yaw; /* when dead, look at killer */
 
-	weaponstate_t weaponstate;
-	vec3_t kick_angles; /* weapon kicks */
-	vec3_t kick_origin;
-	float v_dmg_roll, v_dmg_pitch, v_dmg_time; /* damage kicks */
+	// weaponstate_t weaponstate;
+	// vec3_t kick_angles; /* weapon kicks */
+	// vec3_t kick_origin;
+	// float v_dmg_roll, v_dmg_pitch, v_dmg_time; /* damage kicks */
 	float fall_time, fall_value; /* for view drop on fall */
 	float damage_alpha;
 	float bonus_alpha;
@@ -938,7 +938,12 @@ struct gclient_s
 	int old_waterlevel;
 	int breather_sound;
 
-	float recoil; /* client.c, weapon.c, for weapon animation and bullet spread */
+	float weapon_recoil; /* view.c, weapons.c, for weapon animation and bullet spread */
+	float weapon_view_recoil; /* view.c, weapons.c, for weapon animation and bullet spread */
+	unsigned weapon_frame; /* weapon.c */
+	unsigned weapon_general_frame; /* weapon.c */
+	unsigned weapon_wait; /* weapon.c */
+
 	int prev_health; /* client.c, to regenerate health */
 	float wait2; /* view.c, to flash the screen if health is critical */
 	float gun_angle_inertia[3]; /* view.c, to apply inertia to gun model */
