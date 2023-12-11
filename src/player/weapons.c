@@ -30,22 +30,33 @@
 // Keep an eye on:
 //  - int client_persistant_t::inventory[MAX_ITEMS];
 //        Modify this variable wrong and everything explodes,
-//        luckyly we don't need it too much here
+//        luckyly we don't need it too much here.
 
 //  - gitem_t* client_persistant_t::weapon;
-//        Set once at each conexion to set the blaster,
-//        then is read multiple times, so it needs to be valid
-//        at all times. The most problematic read is the view
-//        model
+//        Read multiple times from outside, so it needs to be
+//        valid at all times. The most problematic read is the
+//        view model.
+
+//  - gitem_t* client_persistant_t::weapon;
+//        Read multiple times from outside, so it needs to be
+//        valid at all times. The most problematic read is the
+//        view model.
 
 //  - gitem_t* client_persistant_t::lastweapon;
-//        Barely used from outside code
+//        Only read in 'g_cmds.c', in 'weaplast' command that
+//        switch between last two weapons.
+
+// - int gclient_s::ammo_index
+//        Only the Hud read this one.
 
 
 struct Behaviour
 {
 	// const char* print_name;
 	const char* classname; // Set in editor
+
+	// Ammo
+	const char* ammo_classname;
 
 	// Model
 	const char* model_name;
@@ -69,6 +80,7 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Blaster",
         .classname = "weapon_blaster",
+        .ammo_classname = NULL,
 
         .model_name = "models/weapons/v_blast/tris.md2",
         .idle_frame = 9,
@@ -83,6 +95,7 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Shotgun",
         .classname = "weapon_shotgun",
+        .ammo_classname = "ammo_shells",
 
         .model_name = "models/weapons/v_shotg/tris.md2",
         .idle_frame = 20,
@@ -97,6 +110,7 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Machine Gun",
         .classname = "weapon_machinegun",
+        .ammo_classname = "ammo_bullets",
 
         .model_name = "models/weapons/v_machn/tris.md2",
         .idle_frame = 6,
@@ -111,6 +125,7 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Rocket Launcher",
         .classname = "weapon_rocketlauncher",
+        .ammo_classname = "ammo_rockets",
 
         .model_name = "models/weapons/v_rocket/tris.md2",
         .idle_frame = 13,
@@ -125,6 +140,7 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Hyperblaster",
         .classname = "weapon_hyperblaster",
+        .ammo_classname = "ammo_cells",
 
         .model_name = "models/weapons/v_hyperb/tris.md2",
         .idle_frame = 21,
@@ -139,6 +155,7 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Railgun",
         .classname = "weapon_railgun",
+        .ammo_classname = "ammo_slugs",
 
         .model_name = "models/weapons/v_rail/tris.md2",
         .idle_frame = 19,
@@ -153,6 +170,7 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "BFG10K",
         .classname = "weapon_bfg",
+        .ammo_classname = "ammo_cells",
 
         .model_name = "models/weapons/v_bfg/tris.md2",
         .idle_frame = 33,
@@ -167,12 +185,17 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Hand Granade",
         .classname = "ammo_grenades",
+        .ammo_classname = "ammo_grenades", // Is it's own ammo
 
         .model_name = "models/weapons/v_handgr/tris.md2",
-        .idle_frame = 16,
+        .idle_frame = 33,
 
         .fire_delay = 20 - 1, // "About one every two seconds" [1]
         .muzzleflash = NO_MUZZLEFLASH,
+
+        .recoil_step = 3.5f,
+        .recoil_restore_step = 0.7f,
+        .max_recoil = 3.5f,
     },
 };
 
@@ -197,6 +220,9 @@ static const struct Behaviour* sFindBehaviour(const char* classname)
 void PlayerNoise(edict_t* who, vec3_t where, int type) {}
 
 
+// ============================================
+
+
 qboolean Pickup_Weapon(edict_t* item_ent, edict_t* player_ent)
 {
 	// Use item classname to find an apropiate behaviour,
@@ -211,7 +237,9 @@ qboolean Pickup_Weapon(edict_t* item_ent, edict_t* player_ent)
 	gi.cprintf(player_ent, PRINT_HIGH, "Pickup_Weapon(): '%s', index: %i\n", b->classname, ITEM_INDEX(item_ent->item));
 
 	// Mark player persistent inventory, outside code require this variable
-	player_ent->client->pers.inventory[ITEM_INDEX(item_ent->item)] = 1;
+	// Funny little detail, weapons accumulate in Quake 2, is possible to carry more
+	// than one, also posible to drop them
+	player_ent->client->pers.inventory[ITEM_INDEX(item_ent->item)] += 1;
 
 	// Bye!
 	return true; // Weapon taken
@@ -237,7 +265,17 @@ void Use_Weapon(edict_t* player, gitem_t* item)
 		return;
 
 	// Mark player persistent weapon, outside code require this variable
+	player->client->pers.lastweapon = player->client->pers.weapon;
 	player->client->pers.weapon = item;
+
+	// Ask inventory for ammo entity index
+	if (b->ammo_classname != NULL)
+	{
+		gitem_t* item = FindItemByClassname(b->ammo_classname);
+		player->client->ammo_index = ITEM_INDEX(item);
+	}
+	else
+		player->client->ammo_index = 0;
 
 	// Keep the behaviour
 	item->info = b;
@@ -252,7 +290,21 @@ void Use_Weapon(edict_t* player, gitem_t* item)
 	}
 }
 
-void Drop_Weapon(edict_t* player_ent, gitem_t* item) {}
+void Drop_Weapon(edict_t* player, gitem_t* item)
+{
+	const struct Behaviour* b = sFindBehaviour(item->classname);
+
+	if (b == NULL)
+	{
+		gi.cprintf(player, PRINT_HIGH, "Drop_Weapon(): item '%s' is not a weapon!\n", item->classname);
+		return;
+	}
+
+	gi.cprintf(player, PRINT_HIGH, "Drop_Weapon(): '%s', index: %i\n", b->classname, ITEM_INDEX(item));
+}
+
+
+// ============================================
 
 
 static inline float sEasing(float x, float e)

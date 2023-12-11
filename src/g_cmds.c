@@ -1594,12 +1594,8 @@ cycle_weapon(edict_t *ent)
 
 	num_weaps = gi.argc();
 
-	/* find where we want to start the search for the next eligible weapon */
-	if (cl->newweapon)
-	{
-		weapname = cl->newweapon->classname;
-	}
-	else if (cl->pers.weapon)
+	/* where we want to start the search for the next eligible weapon */
+	if (cl->pers.weapon)
 	{
 		weapname = cl->pers.weapon->classname;
 	}

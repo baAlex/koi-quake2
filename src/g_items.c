@@ -750,7 +750,7 @@ Pickup_Ammo(edict_t *ent, edict_t *other)
 			(!deathmatch->value ||
 			 (other->client->pers.weapon == FindItem("blaster"))))
 		{
-			other->client->newweapon = ent->item;
+			Use_Weapon(other, ent->item); /* baAlex, TODO: works? */
 		}
 	}
 

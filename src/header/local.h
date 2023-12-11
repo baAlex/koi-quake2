@@ -909,8 +909,6 @@ struct gclient_s
 
 	qboolean weapon_thunk;
 
-	gitem_t *newweapon;
-
 	/* sum up damage over an entire frame, so
 	   shotgun blasts give a single big kick */
 	int damage_armor; /* damage absorbed by armor */
@@ -943,7 +941,6 @@ struct gclient_s
 	unsigned weapon_frame; /* weapon.c */
 	unsigned weapon_general_frame; /* weapon.c */
 	unsigned weapon_wait; /* weapon.c */
-
 	int prev_health; /* client.c, to regenerate health */
 	float wait2; /* view.c, to flash the screen if health is critical */
 	float gun_angle_inertia[3]; /* view.c, to apply inertia to gun model */

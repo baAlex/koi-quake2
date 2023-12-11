@@ -1798,7 +1798,7 @@ PutClientInServer(edict_t *ent)
 	gi.linkentity(ent);
 
 	/* force the current weapon up */
-	Use_Weapon(ent, FindItem("Blaster"));
+	Use_Weapon(ent, client->pers.weapon);
 }
 
 /*
