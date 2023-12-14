@@ -563,6 +563,7 @@ extern cvar_t *g_swap_speed;
 #define DROPPED_ITEM 0x00010000
 #define DROPPED_PLAYER_ITEM 0x00020000
 #define ITEM_TARGETS_USED 0x00040000
+#define ITEM_WEAPON_WITH_NO_AMMO 0x00080000
 
 /* fields are needed for spawning from the entity
    string and saving / loading games */

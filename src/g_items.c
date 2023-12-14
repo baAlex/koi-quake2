@@ -1925,9 +1925,9 @@ static const gitem_t gameitemlist[] = {
 		"a_grenades",
 		"Grenades",
 		3,
-		5,
+		0xFFFF, /* baAlex, to detect if something is wrong */
 		"grenades",
-		IT_AMMO | IT_WEAPON,
+		IT_WEAPON | IT_STAY_COOP,
 		WEAP_GRENADES,
 		NULL,
 		AMMO_GRENADES,

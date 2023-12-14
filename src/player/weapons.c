@@ -57,6 +57,8 @@ struct Behaviour
 
 	// Ammo
 	const char* ammo_classname;
+	uint8_t pickup_drop_ammo; // Ammo to add at pickup, to subtract at drop
+	uint8_t fire_ammo;
 
 	// Model
 	const char* model_name;
@@ -95,7 +97,10 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Shotgun",
         .classname = "weapon_shotgun",
+
         .ammo_classname = "ammo_shells",
+        .pickup_drop_ammo = 10,
+        .fire_ammo = 1,
 
         .model_name = "models/weapons/v_shotg/tris.md2",
         .idle_frame = 20,
@@ -110,7 +115,10 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Machine Gun",
         .classname = "weapon_machinegun",
+
         .ammo_classname = "ammo_bullets",
+        .pickup_drop_ammo = 50,
+        .fire_ammo = 1,
 
         .model_name = "models/weapons/v_machn/tris.md2",
         .idle_frame = 6,
@@ -125,7 +133,10 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Rocket Launcher",
         .classname = "weapon_rocketlauncher",
+
         .ammo_classname = "ammo_rockets",
+        .pickup_drop_ammo = 5,
+        .fire_ammo = 1,
 
         .model_name = "models/weapons/v_rocket/tris.md2",
         .idle_frame = 13,
@@ -140,7 +151,10 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Hyperblaster",
         .classname = "weapon_hyperblaster",
+
         .ammo_classname = "ammo_cells",
+        .pickup_drop_ammo = 50,
+        .fire_ammo = 1,
 
         .model_name = "models/weapons/v_hyperb/tris.md2",
         .idle_frame = 21,
@@ -155,7 +169,10 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Railgun",
         .classname = "weapon_railgun",
+
         .ammo_classname = "ammo_slugs",
+        .pickup_drop_ammo = 10,
+        .fire_ammo = 1,
 
         .model_name = "models/weapons/v_rail/tris.md2",
         .idle_frame = 19,
@@ -170,7 +187,10 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "BFG10K",
         .classname = "weapon_bfg",
+
         .ammo_classname = "ammo_cells",
+        .pickup_drop_ammo = 50,
+        .fire_ammo = 50,
 
         .model_name = "models/weapons/v_bfg/tris.md2",
         .idle_frame = 33,
@@ -185,7 +205,10 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Hand Granade",
         .classname = "ammo_grenades",
+
         .ammo_classname = "ammo_grenades", // Is it's own ammo
+        .pickup_drop_ammo = 5,
+        .fire_ammo = 1,
 
         .model_name = "models/weapons/v_handgr/tris.md2",
         .idle_frame = 33,
@@ -241,6 +264,26 @@ qboolean Pickup_Weapon(edict_t* item_ent, edict_t* player_ent)
 	// than one, also posible to drop them
 	player_ent->client->pers.inventory[ITEM_INDEX(item_ent->item)] += 1;
 
+	// Add some ammo
+	if (strcmp(b->ammo_classname, b->classname) == 0)
+	{
+		// Weapon is its own ammo, so instead we increase
+		// how much weapons of this kind we carry
+		if ((item_ent->spawnflags & ITEM_WEAPON_WITH_NO_AMMO) == 0)
+			player_ent->client->pers.inventory[ITEM_INDEX(item_ent->item)] += ((int)(b->pickup_drop_ammo) - 1);
+	}
+	else if (b->ammo_classname != NULL)
+	{
+		// Ask inventory for what kind of ammo we must add
+		if ((item_ent->spawnflags & ITEM_WEAPON_WITH_NO_AMMO) == 0)
+		{
+			gitem_t* ammo_item = FindItemByClassname(b->ammo_classname);
+			Add_Ammo(player_ent, ammo_item, (int)(b->pickup_drop_ammo));
+		}
+		else // Oh no! a weapon with no ammo
+			gi.cprintf(player_ent, PRINT_HIGH, "Weapon without ammo\n");
+	}
+
 	// Bye!
 	return true; // Weapon taken
 
@@ -268,11 +311,12 @@ void Use_Weapon(edict_t* player, gitem_t* item)
 	player->client->pers.lastweapon = player->client->pers.weapon;
 	player->client->pers.weapon = item;
 
-	// Ask inventory for ammo entity index
+	// Mark player ammo index,
+	// asking first to inventory for ammo entity index
 	if (b->ammo_classname != NULL)
 	{
-		gitem_t* item = FindItemByClassname(b->ammo_classname);
-		player->client->ammo_index = ITEM_INDEX(item);
+		gitem_t* ammo_item = FindItemByClassname(b->ammo_classname);
+		player->client->ammo_index = ITEM_INDEX(ammo_item);
 	}
 	else
 		player->client->ammo_index = 0;
@@ -301,6 +345,61 @@ void Drop_Weapon(edict_t* player, gitem_t* item)
 	}
 
 	gi.cprintf(player, PRINT_HIGH, "Drop_Weapon(): '%s', index: %i\n", b->classname, ITEM_INDEX(item));
+
+	if (player->client->pers.inventory[ITEM_INDEX(item)] <= 0)
+	{
+		// We already drop all weapons of this kind
+		gi.cprintf(player, PRINT_HIGH, "Drop_Weapon(): no weapon '%s' in inventory\n", b->classname);
+		return;
+	}
+
+	// Subtract some ammo, if possible
+	int tag_with;
+	int ammo_index = 0;
+
+	if (strcmp(b->ammo_classname, b->classname) == 0)
+	{
+		ammo_index = ITEM_INDEX(item);
+
+		if (player->client->pers.inventory[ammo_index] >= (int)(b->pickup_drop_ammo))
+			player->client->pers.inventory[ammo_index] -= (int)(b->pickup_drop_ammo);
+		else
+		{
+			tag_with = ITEM_WEAPON_WITH_NO_AMMO;
+			player->client->pers.inventory[ammo_index] -= 1;
+		}
+	}
+	else if (b->ammo_classname != NULL)
+	{
+		gitem_t* ammo_item = FindItemByClassname(b->ammo_classname);
+		ammo_index = ITEM_INDEX(ammo_item);
+
+		if (player->client->pers.inventory[ammo_index] >= (int)(b->pickup_drop_ammo))
+		{
+			player->client->pers.inventory[ammo_index] -= (int)(b->pickup_drop_ammo);
+			tag_with = 0;
+		}
+		else
+			tag_with = ITEM_WEAPON_WITH_NO_AMMO;
+	}
+
+	// Drop item
+	edict_t* dropped_item = Drop_Item(player, item);
+	dropped_item->spawnflags |= (tag_with | DROPPED_ITEM | DROPPED_PLAYER_ITEM); // Tags used in Dm to respawn items
+
+	// Mark player persistent inventory
+	if (strcmp(b->ammo_classname, b->classname) != 0)
+		player->client->pers.inventory[ITEM_INDEX(item)] -= 1;
+
+	// Should we change current weapon?
+	if (
+	    // We where using it and now we have zero weapons of this kind left
+	    (player->client->pers.weapon == item && player->client->pers.inventory[ITEM_INDEX(item)] == 0) ||
+	    // We don't have any ammo for it
+	    (ammo_index > 0 && player->client->pers.inventory[ammo_index] == 0))
+	{
+		Use_Weapon(player, FindItemByClassname("weapon_blaster"));
+	}
 }
 
 
@@ -313,34 +412,66 @@ static inline float sEasing(float x, float e)
 	return x = (x) / (x + e * (1.0F - x) + epsilon);
 }
 
-void Think_Weapon(edict_t* ent)
+static void sPlayNoAmmoSound(edict_t* ent)
+{
+	// TODO: this function is similiar to others in 'view.c', merge them
+	if (level.time < ent->pain_debounce_time)
+		return;
+
+	gi.sound(ent, CHAN_VOICE, gi.soundindex("weapons/noammo.wav"), 1, ATTN_NORM, 0);
+	ent->pain_debounce_time = level.time + 2.0f;
+}
+
+void Think_Weapon(edict_t* player)
 {
 	int fire = 0;
 
 	// Retrieve behaviour
-	const struct Behaviour* b = ent->client->pers.weapon->info;
+	const struct Behaviour* b = player->client->pers.weapon->info;
 
 	// Should we fire?
-	if ((ent->client->buttons & BUTTON_ATTACK) == true)
+	if ((player->client->buttons & BUTTON_ATTACK) == true)
 	{
 		// Fire!
-		if (ent->client->weapon_wait < ent->client->weapon_general_frame)
+		if (player->client->weapon_wait < player->client->weapon_general_frame)
 		{
+			// No ammo
+			if (b->ammo_classname != NULL &&
+			    player->client->pers.inventory[player->client->ammo_index] < (int)(b->fire_ammo))
+			{
+				sPlayNoAmmoSound(player);
+				Use_Weapon(player, FindItemByClassname("weapon_blaster"));
+				return;
+			}
+
+			// Fire
 			fire = 1;
-			ent->client->weapon_wait = ent->client->weapon_general_frame + (unsigned)(b->fire_delay);
+			player->client->weapon_wait = player->client->weapon_general_frame + (unsigned)(b->fire_delay);
+
+			// Subtract ammo
+			if (b->ammo_classname != NULL)
+				player->client->pers.inventory[player->client->ammo_index] -= (int)(b->fire_ammo);
 
 			// Apply recoil
-			ent->client->weapon_recoil += b->recoil_step;
-			if (ent->client->weapon_recoil > b->max_recoil)
-				ent->client->weapon_recoil = b->max_recoil;
+			player->client->weapon_recoil += b->recoil_step;
+			if (player->client->weapon_recoil > b->max_recoil)
+				player->client->weapon_recoil = b->max_recoil;
 
 			// Client effect
 			if (b->muzzleflash != NO_MUZZLEFLASH)
 			{
 				gi.WriteByte(svc_muzzleflash);
-				gi.WriteShort(ent - g_edicts);
+				gi.WriteShort(player - g_edicts);
 				gi.WriteByte((int)(b->muzzleflash));
-				gi.multicast(ent->s.origin, MULTICAST_PVS);
+				gi.multicast(player->s.origin, MULTICAST_PVS);
+			}
+
+			// Weapons that are its own ammo are trow away immediatly
+			if (b->ammo_classname != NULL && strcmp(b->ammo_classname, b->classname) == 0 &&
+			    player->client->pers.inventory[player->client->ammo_index] == 0)
+			{
+				Use_Weapon(player, FindItemByClassname("weapon_blaster"));
+				return;
 			}
 		}
 	}
@@ -349,28 +480,29 @@ void Think_Weapon(edict_t* ent)
 	if (fire == 0)
 	{
 		// Restore recoil
-		ent->client->weapon_recoil -= b->recoil_restore_step;
-		if (ent->client->weapon_recoil < 0.0f)
-			ent->client->weapon_recoil = 0.0f;
+		player->client->weapon_recoil -= b->recoil_restore_step;
+		if (player->client->weapon_recoil < 0.0f)
+			player->client->weapon_recoil = 0.0f;
 
 		// View recoil trough an easing function
-		ent->client->weapon_view_recoil = sEasing(ent->client->weapon_recoil / b->max_recoil, 3.0f) * b->max_recoil;
+		player->client->weapon_view_recoil =
+		    sEasing(player->client->weapon_recoil / b->max_recoil, 3.0f) * b->max_recoil;
 	}
 	else
 	{
 		// While firing view recoil is simply linear
-		ent->client->weapon_view_recoil = ent->client->weapon_recoil;
+		player->client->weapon_view_recoil = player->client->weapon_recoil;
 	}
 
 	// We need to trick client's model interpolation
-	if (ent->client->weapon_frame == 0)
-		ent->client->ps.gunframe = (int)(b->idle_frame);
-	if (ent->client->weapon_frame == 1)
-		ent->client->ps.gunindex = gi.modelindex(b->model_name);
+	if (player->client->weapon_frame == 0)
+		player->client->ps.gunframe = (int)(b->idle_frame);
+	if (player->client->weapon_frame == 1)
+		player->client->ps.gunindex = gi.modelindex(b->model_name);
 
 	// Update state
-	ent->client->weapon_frame += 1;
-	ent->client->weapon_general_frame += 1;
+	player->client->weapon_frame += 1;
+	player->client->weapon_general_frame += 1;
 
 	// Developers, developers, developers
 	// printf("%f %s\n", level.time, (fire == 1) ? "Fire!" : "");
