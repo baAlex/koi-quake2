@@ -9,7 +9,7 @@
 // Health regeneration (client.c)
 // ==============================
 static const bool HEALTH_REGENERATION = true;
-static const float HEALTH_REGENERATION_DELAY = 4.0f;  // Four seconds before regeneration
+static const float HEALTH_REGENERATION_DELAY = 8.0f;  // Four seconds before regeneration
 static const float HEALTH_REGENERATION_SPEED = 0.25f; // Seconds between '+1'
 
 
@@ -43,8 +43,7 @@ static const float CRITICAL_HEALTH_DAMAGE_FLASH_FADE_OUT = DAMAGE_FLASH_FADE_OUT
 // ==================
 static const bool WALKCYCLE = true;
 
-static const float WALKCYCLE_RUN_SPEED =
-    (225.0f + 210.0f) / 2.0f;                     // In different instances, Yamagi use 225 and Carmack 210
+static const float WALKCYCLE_RUN_SPEED = 297.0f; // Yamagi use 225, Carmack 210
 static const float WALKCYCLE_WALK_SPEED = 100.0f; // This one is Carmack
 
 static const float WALKCYCLE_FREQUENCY[3] = {1.0f, 0.75f, 0.60f}; // Running, walking, otherwise
@@ -55,19 +54,19 @@ static const bool WALKCYCLE_FOOTSTEP_SOUND = true;                // Depends on 
 // ================
 static const bool GUN_BOB = true; // Requires WALKCYCLE
 
-static const float GUN_BOB_PITCH[3] = {3.0f, 1.5f, 1.0f}; // Running, walking, otherwise
+static const float GUN_BOB_PITCH[3] = {2.0f, 1.5f, 1.0f}; // Running, walking, otherwise
 static const float GUN_BOB_YAW[3] = {1.5f, 1.5f, 1.5f};
 static const float GUN_BOB_ROLL[3] = {0.75f, 0.75f, 0.75f};
 
-static const int GUN_BOB_PITCH_WAVE[3] = {2, 0, 0}; // Waveforms, for running, walking, otherwhise
+static const int GUN_BOB_PITCH_WAVE[3] = {0, 0, 0}; // Waveforms, for running, walking, otherwhise
 static const int GUN_BOB_YAW_WAVE[3] = {1, 1, 1};
 static const int GUN_BOB_ROLL_WAVE[3] = {1, 1, 1};
 
 // Waveforms are:
 // - 0 = sin(phase * 2)
 // - 1 = sin(phase)
-// - 2 = abs(sin(phase * 2))
-
+// - 2 = abs(sin(phase * 2)) !!! Enters in phase with the others...
+// ... and a '(fabsf(sinf(ent->client->bobtime * 2.0f)) - 0.5f) * 2.0f' don't help either
 
 // Gun angle recoil (view.c)
 // =========================
