@@ -1,5 +1,5 @@
-Quake 2 Me
-==========
+Koi Quake 2
+===========
 
 This is a mod that changes Quake 2 gameplay mechanics just for fun and
 experimentation.
