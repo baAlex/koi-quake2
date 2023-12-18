@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2023 Alexander Brandt.
  * Copyright (C) 1997-2001 Id Software, Inc.
+ * Copyright (C) 2023 Alexander Brandt.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -73,15 +73,13 @@ struct Behaviour
 	uint8_t projectiles_no; // Like pellets in a shotgun
 	uint8_t damage;         // Per projectile
 	uint8_t impact_effect;  // 'TE_' prefixed client effect
-
-	float spread;            // In game units, more or less
-	float spread_crouch;     // TODO [*2]
-	uint8_t spread_x_recoil; // TODO [*2]
+	float projectiles_spray;
 
 	// Recoil
-	float recoil_step;         // TODO [*2]
-	float recoil_restore_step; // TODO [*2]
-	float max_recoil;          // TODO [*2]
+	float recoil_step;         // 0, 1
+	float recoil_restore_step; // 0, 1
+	float spread;              // In angles?
+	float spread_crouch;
 };
 
 
@@ -92,25 +90,24 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Blaster",
         .classname = "weapon_blaster",
-        .ammo_classname = NULL,
+        .fire_ammo = 0,
 
         .model_name = "models/weapons/v_blast/tris.md2",
         .idle_frame = 9,
 
-        .fire_delay = 4 - 1, // "Two shots per second" [*1]
+        //.fire_delay = 5 - 1, // "Two shots per second" [*1]
+        .fire_delay = 3 - 1, // "Two shots per second" [*1]
         .muzzle_flash = MZ_BLASTER,
 
-        .damage = (10 + 15) / 2,
+        .damage = 10,
         .projectiles_no = 1,
         .impact_effect = TE_BLASTER,
 
-        .spread = 2.0f,
-        .spread_crouch = 0.1f, // Almost nothing
-        .spread_x_recoil = 1,
+        .recoil_step = 1.0f,
+        .recoil_restore_step = 1.0f / (5.0f - 1.0f), // Match old fire delay, newer is faster
+        .spread = 7.0f,
 
-        .recoil_step = 2.5f,
-        .recoil_restore_step = 0.5f,
-        .max_recoil = 2.5f,
+        .spread_crouch = 0.1f, // Almost no spread
     },
     {
         //.print_name = "Shotgun",
@@ -123,20 +120,20 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
         .model_name = "models/weapons/v_shotg/tris.md2",
         .idle_frame = 20,
 
-        .fire_delay = 10 - 1, // "One discharge (1 shell) per second" [*1]
+        //.fire_delay = 10 - 1, // "One discharge (1 shell) per second" [*1]
+        .fire_delay = 9 - 1, // A bit faster
         .muzzle_flash = MZ_SHOTGUN,
 
         .damage = 4,
         .projectiles_no = 12,
         .impact_effect = TE_SHOTGUN,
+        .projectiles_spray = 8.0f,
 
-        .spread = 5.0f,
-        .spread_crouch = 1.0f, // Remains the same
-        .spread_x_recoil = 0,
+        .recoil_step = 1.0f,
+        .recoil_restore_step = 1.0f / (10.0f - 1.0f), // Match old fire delay, newer is faster
+        .spread = 50.0f,                              // Up to 100 is tolerable
 
-        .recoil_step = 2.5f,
-        .recoil_restore_step = 0.75f,
-        .max_recoil = 2.5f,
+        .spread_crouch = 0.2f,
     },
     {
         //.print_name = "Machine Gun",
@@ -152,17 +149,15 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
         .fire_delay = 0, // "10 bullets per second" [*1]
         .muzzle_flash = MZ_MACHINEGUN,
 
-        .damage = 7,
+        .damage = 8,
         .projectiles_no = 1,
         .impact_effect = TE_GUNSHOT,
 
-        .spread = 5.0f,
-        .spread_crouch = 0.33f,
-        .spread_x_recoil = 1,
+        .recoil_step = (1.0f) / 25.0f, // 25 shots
+        .recoil_restore_step = 0.11f,
+        .spread = 10.0f,
 
-        .recoil_step = 0.5f,
-        .recoil_restore_step = 2.0f,
-        .max_recoil = 2.5f,
+        .spread_crouch = 0.4f,
     },
     {
         //.print_name = "Rocket Launcher",
@@ -181,10 +176,6 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
         .damage = 8,
         .projectiles_no = 1,
         .impact_effect = TE_GUNSHOT,
-
-        .recoil_step = 3.5f,
-        .recoil_restore_step = 0.7f,
-        .max_recoil = 3.5f,
     },
     {
         //.print_name = "Hyperblaster",
@@ -204,9 +195,11 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
         .projectiles_no = 1,
         .impact_effect = TE_BLASTER,
 
-        .recoil_step = 0.2f,
-        .recoil_restore_step = 0.75f,
-        .max_recoil = 1.75f,
+        .recoil_step = (1.0f) / 20.0f, // 20 shots
+        .recoil_restore_step = 0.09f,
+        .spread = 12.0f,
+
+        .spread_crouch = 0.4f,
     },
     {
         //.print_name = "Railgun",
@@ -225,10 +218,6 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
         .damage = (100 + 150) / 2,
         .projectiles_no = 1,
         .impact_effect = TE_RAILTRAIL,
-
-        .recoil_step = 4.0f,
-        .recoil_restore_step = 0.5f,
-        .max_recoil = 4.0f,
     },
     {
         //.print_name = "BFG10K",
@@ -247,10 +236,6 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
         .damage = 8,
         .projectiles_no = 1,
         .impact_effect = TE_GUNSHOT,
-
-        .recoil_step = 5.0f,
-        .recoil_restore_step = 0.5f,
-        .max_recoil = 5.0f,
     },
     {
         //.print_name = "Hand Grenade",
@@ -269,10 +254,6 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
         .damage = 8,
         .projectiles_no = 1,
         .impact_effect = TE_GUNSHOT,
-
-        .recoil_step = 3.5f,
-        .recoil_restore_step = 0.7f,
-        .max_recoil = 3.5f,
     },
 };
 
@@ -380,11 +361,9 @@ void Use_Weapon(edict_t* player, gitem_t* item)
 
 	// Reset state, not entirely tho
 	{
-		// player->client->weapon_recoil -= 50.0f;
-		// player->client->weapon_general_frame = 0;
+		player->client->weapon_recoil = 1.0f; // Penalize change weapons
 		player->client->weapon_frame = 0;
 		player->client->weapon_wait = 0;
-		// player->client->weapon_wait2 = 0;
 	}
 }
 
@@ -485,37 +464,13 @@ static void sPlayNoAmmoSound(edict_t* player)
 	player->pain_debounce_time = level.time + 2.0f;
 }
 
-static int sTraceRay(const edict_t* player, const struct Behaviour* b, trace_t* out, vec3_t* forward)
+static int sTraceRay(const edict_t* player, const struct Behaviour* b, vec3_t direction, trace_t* out)
 {
-	// Calculate direction
-	{
-		float recoil = player->client->weapon_recoil;
-		if ((player->client->ps.pmove.pm_flags & PMF_DUCKED) != 0)
-			recoil *= b->spread_crouch;
-
-		const float q = frandk() * M_PI * 2.0f; // Polar to avoid a square spread
-		const float r =
-		    powf(frandk(), 2.0f) * ((b->spread_x_recoil > 0) ? recoil : 1.0f) * b->spread; // Bias towards centre
-
-		const float random_x = cos(q) * r;
-		const float random_y = sin(q) * r;
-
-		// Maths
-		vec3_t angle;
-		VectorSet(angle,                                 //
-		          player->client->v_angle[0] + random_y, //
-		          player->client->v_angle[1] + random_x, //
-		          player->client->v_angle[2]);
-
-		AngleVectors(angle, *forward, NULL, NULL);
-	}
-
-	// Trace ray
 	vec3_t start;
 	VectorSet(start, player->s.origin[0], player->s.origin[1], player->s.origin[2] + player->viewheight);
 
 	vec3_t end;
-	VectorMA(start, 8192, *forward, end);
+	VectorMA(start, 8192, direction, end);
 
 	*out = gi.trace(start, NULL, NULL, end, player, MASK_SHOT);
 	return 0;
@@ -524,42 +479,70 @@ static int sTraceRay(const edict_t* player, const struct Behaviour* b, trace_t* 
 		return 1;
 }
 
-static void sHitscan_(const edict_t* player, const struct Behaviour* b)
+static void sHitscan(const edict_t* player, const struct Behaviour* b)
 {
 	int knockback = 10;
 	int means_of_death = MOD_UNKNOWN;
 
+	// Calculate spread
+	float spread;
+	{
+		spread = b->spread;
+		if ((player->client->ps.pmove.pm_flags & PMF_DUCKED) != 0)
+			spread *= b->spread_crouch;
+	}
+
+	// Calculate ray direction
+	vec3_t direction;
+	vec3_t direction_forward;
+	{
+		const float recoil = player->client->weapon_recoil;
+
+		const float q = frandk() * M_PI * 2.0f;                 // Polar to avoid a square spread
+		const float r = powf(frandk(), 2.0f) * spread * recoil; // Bias towards centre
+		const float random_x = cos(q) * r;
+		const float random_y = sin(q) * r;
+
+		// Maths
+		VectorSet(direction,                             //
+		          player->client->v_angle[0] + random_y, //
+		          player->client->v_angle[1] + random_x, //
+		          player->client->v_angle[2]);
+
+		AngleVectors(direction, direction_forward, NULL, NULL);
+	}
+
 	// Trace a ray
-	vec3_t forward;
 	trace_t tr;
 
-	if (sTraceRay(player, b, &tr, &forward) != 0)
-		return;
-
-	// Impact puff
-	if ((tr.surface->flags & SURF_SKY) == 0)
+	for (int i = 0; i < b->projectiles_no; i += 1)
 	{
-		if (tr.ent->takedamage)
-		{
-			T_Damage(tr.ent, player, player, forward, tr.endpos, tr.plane.normal, (int)(b->damage), knockback,
-			         DAMAGE_BULLET, means_of_death);
-		}
-		else
-		{
-			gi.WriteByte(svc_temp_entity);
-			gi.WriteByte((int)(b->impact_effect));
-			gi.WritePosition(tr.endpos);
-			gi.WriteDir(tr.plane.normal);
-			gi.multicast(tr.endpos, MULTICAST_PVS);
-		}
-	}
-}
+		if (sTraceRay(player, b, direction_forward, &tr) != 0)
+			return;
 
-static void sHitscan(const edict_t* player, const struct Behaviour* b)
-{
-	for (uint8_t i = 0; i < b->projectiles_no; i += 1)
-	{
-		sHitscan_(player, b);
+		// Impact puff
+		if ((tr.surface->flags & SURF_SKY) == 0)
+		{
+			if (tr.ent->takedamage)
+			{
+				T_Damage(tr.ent, player, player, direction_forward, tr.endpos, tr.plane.normal, (int)(b->damage),
+				         knockback, DAMAGE_BULLET, means_of_death);
+			}
+			else
+			{
+				gi.WriteByte(svc_temp_entity);
+				gi.WriteByte((int)(b->impact_effect));
+				gi.WritePosition(tr.endpos);
+				gi.WriteDir(tr.plane.normal);
+				gi.multicast(tr.endpos, MULTICAST_PVS);
+			}
+		}
+
+		// Update direction, no fancy polar here
+		direction_forward[0] = direction[0] + (frandk() - 0.5f) * b->projectiles_spray;
+		direction_forward[1] = direction[1] + (frandk() - 0.5f) * b->projectiles_spray;
+
+		AngleVectors(direction_forward, direction_forward, NULL, NULL);
 	}
 }
 
@@ -577,30 +560,33 @@ void Think_Weapon(edict_t* player)
 		if (player->client->weapon_wait < player->client->weapon_general_frame)
 		{
 			// No ammo
-			if (b->ammo_classname != NULL &&
-			    player->client->pers.inventory[player->client->ammo_index] < (int)(b->fire_ammo))
+			if (player->client->pers.inventory[player->client->ammo_index] < (int)(b->fire_ammo))
 			{
 				sPlayNoAmmoSound(player);
 				Use_Weapon(player, FindItemByClassname("weapon_blaster"));
 				return;
 			}
 
-			// Fire
+			// Subtract ammo
+			if (0)
+			{
+				player->client->pers.inventory[player->client->ammo_index] -= (int)(b->fire_ammo);
+			}
+
+			// Fire,
+			// before recoil so first shot always goes to centre
 			fire = 1;
 			player->client->weapon_wait = player->client->weapon_general_frame + (unsigned)(b->fire_delay);
+
 			sHitscan(player, b);
 
-			// Subtract ammo
-			if (1)
-			{
-				if (b->ammo_classname != NULL)
-					player->client->pers.inventory[player->client->ammo_index] -= (int)(b->fire_ammo);
-			}
+			// Developers, developers, developers
+			player->client->ps.stats[30] = (short)(player->client->weapon_recoil * 100.0f);
 
 			// Apply recoil
 			player->client->weapon_recoil += b->recoil_step;
-			if (player->client->weapon_recoil > b->max_recoil)
-				player->client->weapon_recoil = b->max_recoil;
+			if (player->client->weapon_recoil > 1.0f)
+				player->client->weapon_recoil = 1.0f;
 
 			// Client effect
 			if (b->muzzle_flash != NO_MUZZLE_FLASH)
@@ -630,13 +616,13 @@ void Think_Weapon(edict_t* player)
 			player->client->weapon_recoil = 0.0f;
 
 		// View recoil trough an easing function
-		player->client->weapon_view_recoil =
-		    sEasing(player->client->weapon_recoil / b->max_recoil, 3.0f) * b->max_recoil;
+		// player->client->weapon_view_recoil =
+		//    sEasing(player->client->weapon_recoil / b->max_recoil, 3.0f) * b->max_recoil;
 	}
 	else
 	{
 		// While firing view recoil is simply linear
-		player->client->weapon_view_recoil = player->client->weapon_recoil;
+		// player->client->weapon_view_recoil = player->client->weapon_recoil;
 	}
 
 	// We need to trick client's model interpolation
@@ -650,5 +636,5 @@ void Think_Weapon(edict_t* player)
 	player->client->weapon_general_frame += 1;
 
 	// Developers, developers, developers
-	// printf("%f %s\n", level.time, (fire == 1) ? "Fire!" : "");
+	player->client->ps.stats[31] = (short)(player->client->weapon_recoil * 100.0f);
 }

@@ -70,14 +70,14 @@ static const int GUN_BOB_ROLL_WAVE[3] = {1, 1, 1};
 
 // Gun angle recoil (view.c)
 // =========================
-static const bool GUN_ANGLE_RECOIL = true; // WALKCYCLE not required, but helps
+static const bool GUN_ANGLE_RECOIL = false; // WALKCYCLE not required, but helps
 
 static const float GUN_ANGLE_RECOIL_SCALE[3] = {1.8F * 1.5f, 1.5F * 1.5f, 1.0F * 1.5f}; // Running, walking, otherwise
 
 
 // Gun offset recoil (view.c)
 // ==========================
-static const bool GUN_OFFSET_RECOIL = true; // WALKCYCLE not required, but helps
+static const bool GUN_OFFSET_RECOIL = false; // WALKCYCLE not required, but helps
 
 static const float GUN_OFFSET_RECOIL_SCALE[3] = {1.8F, 1.5F, 1.0F}; // Running, walking, otherwise
 

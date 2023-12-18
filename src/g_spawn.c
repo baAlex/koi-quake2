@@ -710,9 +710,17 @@ SpawnEntities(const char *mapname, char *entities, const char *spawnpoint)
 /* =================================================================== */
 
 static char *single_statusbar =
-	"yb	-24 "
+
+/*  developers, developers, developers */
+	"xr -60 "
+	"yb -30 "
+	"num 3 31 "
+	"xr -60 "
+	"yb -60 "
+	"num 3 30 "
 
 /* health */
+	"yb	-24 "
 	"xv	0 "
 	"hnum "
 	"xv	50 "
