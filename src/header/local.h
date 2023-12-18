@@ -904,8 +904,6 @@ struct gclient_s
 	qboolean showhelp;
 	qboolean showhelpicon;
 
-	int ammo_index;
-
 	int buttons;
 	int oldbuttons;
 	int latched_buttons;

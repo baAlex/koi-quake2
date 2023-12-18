@@ -29,18 +29,6 @@
 #define HEALTH_IGNORE_MAX 1
 #define HEALTH_TIMED 2
 
-void Weapon_Blaster(edict_t *ent);
-void Weapon_Shotgun(edict_t *ent);
-void Weapon_SuperShotgun(edict_t *ent);
-void Weapon_Machinegun(edict_t *ent);
-void Weapon_Chaingun(edict_t *ent);
-void Weapon_HyperBlaster(edict_t *ent);
-void Weapon_RocketLauncher(edict_t *ent);
-void Weapon_Grenade(edict_t *ent);
-void Weapon_GrenadeLauncher(edict_t *ent);
-void Weapon_Railgun(edict_t *ent);
-void Weapon_BFG(edict_t *ent);
-
 static gitem_armor_t jacketarmor_info = {25, 50, .30, .00, ARMOR_JACKET};
 static gitem_armor_t combatarmor_info = {50, 100, .60, .30, ARMOR_COMBAT};
 static gitem_armor_t bodyarmor_info = {100, 200, .80, .60, ARMOR_BODY};

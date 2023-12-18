@@ -22,8 +22,13 @@
 #ifndef KOI_WEAPONS_H
 #define KOI_WEAPONS_H
 
+struct koiWeaponBehaviour;
+
 struct koiWeaponState
 {
+	struct gitem_s* ammo_item; // May be NULL
+
+	const struct koiWeaponBehaviour* b;
 	float recoil;
 	unsigned frame;
 	unsigned general_frame;

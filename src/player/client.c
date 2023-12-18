@@ -730,7 +730,7 @@ TossClientWeapon(edict_t *self)
 
 	item = self->client->pers.weapon;
 
-	if (!self->client->pers.inventory[self->client->ammo_index])
+	if (!self->client->pers.inventory[ITEM_INDEX(self->client->weapon.ammo_item)])
 	{
 		item = NULL;
 	}

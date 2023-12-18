@@ -25,7 +25,6 @@
 
 // References/notes:
 // [*1] http://www.quake2.com/q2wfaq/q2wfaq.html
-// [*2] I need to think how spread an recoil interacts
 
 
 // Keep an eye on:
@@ -42,11 +41,16 @@
 //        Only read in 'g_cmds.c', in 'weaplast' command that
 //        switch between last two weapons.
 
-// - int gclient_s::ammo_index
-//        Only the Hud read this one.
+// Also I should honor follow cvars:
+//  - [    ] dmflags: DF_WEAPONS_STAY
+//  - [done] dmflags: DF_INFINITE_AMMO
+//  - [    ] coop
+//  - [    ] coop_pickup_weapons
+//  - [    ] deathmatch (changes weapons damage)
+//  - [done] g_select_empty
+//  - [    ] g_swap_speed (seems to be a Yamagi addition)
 
-
-struct Behaviour
+struct koiWeaponBehaviour
 {
 	// const char* print_name;
 	const char* classname; // Set in editor
@@ -81,7 +85,7 @@ struct Behaviour
 #define NO_MUZZLE_FLASH 255
 #define WEAPONS_NO 8
 
-static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
+static struct koiWeaponBehaviour BEHAVIOURS[WEAPONS_NO] = {
     {
         //.print_name = "Blaster",
         .classname = "weapon_blaster",
@@ -253,9 +257,9 @@ static struct Behaviour BEHAVIOURS[WEAPONS_NO] = {
 };
 
 
-static const struct Behaviour* sFindBehaviour(const char* classname)
+static const struct koiWeaponBehaviour* sFindBehaviour(const char* classname)
 {
-	const struct Behaviour* b = NULL;
+	const struct koiWeaponBehaviour* b = NULL;
 
 	for (int i = 0; i < WEAPONS_NO; i += 1)
 	{
@@ -280,7 +284,7 @@ qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player
 {
 	// Use item classname to find an appropiate behaviour,
 	// this checks if is an item of a weapon under our control
-	const struct Behaviour* b = sFindBehaviour(weapon_item_ent->item->classname);
+	const struct koiWeaponBehaviour* b = sFindBehaviour(weapon_item_ent->item->classname);
 	if (b == NULL)
 	{
 		gi.cprintf(player_ent, PRINT_HIGH, "koiWeaponPickup(): item '%s' is not a weapon!\n",
@@ -325,8 +329,8 @@ return_failure:
 
 void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 {
-	const struct Behaviour* prev_b = player->client->pers.weapon->info;
-	const struct Behaviour* b = sFindBehaviour(weapon_item->classname);
+	const struct koiWeaponBehaviour* prev_b = player->client->weapon.b;
+	const struct koiWeaponBehaviour* b = sFindBehaviour(weapon_item->classname);
 
 	if (b == NULL)
 	{
@@ -336,28 +340,24 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 
 	gi.cprintf(player, PRINT_HIGH, "koiWeaponUse(): '%s', index: %i\n", b->classname, ITEM_INDEX(weapon_item));
 
-	// if (prev_b == b) // TODO, works bad at levels change
-	// 	return;
+	if (prev_b == b)
+		return;
+
+	if (g_select_empty->value == 0)
+	{
+		const struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
+		if (ammo_item != NULL && player->client->pers.inventory[ITEM_INDEX(ammo_item)] < b->fire_ammo)
+			return;
+	}
 
 	// Mark player persistent weapon, outside code require this variables
 	player->client->pers.lastweapon = player->client->pers.weapon;
 	player->client->pers.weapon = weapon_item;
 
-	// Mark player ammo index,
-	// asking first to inventory for ammo entity index
-	if (b->ammo_classname != NULL)
+	// Set state
 	{
-		struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
-		player->client->ammo_index = ITEM_INDEX(ammo_item);
-	}
-	else
-		player->client->ammo_index = 0;
-
-	// Keep the behaviour
-	weapon_item->info = b;
-
-	// Reset state, not entirely tho
-	{
+		player->client->weapon.ammo_item = FindItemByClassname(b->ammo_classname);
+		player->client->weapon.b = b;
 		player->client->weapon.recoil = 1.0f; // Penalize change weapons
 		player->client->weapon.frame = 0;
 		player->client->weapon.wait = 0;
@@ -366,7 +366,7 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 
 void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 {
-	const struct Behaviour* b = sFindBehaviour(weapon_item->classname);
+	const struct koiWeaponBehaviour* b = sFindBehaviour(weapon_item->classname);
 
 	if (b == NULL)
 	{
@@ -392,10 +392,9 @@ void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 	if (strcmp(b->ammo_classname, b->classname) != 0)
 	{
 		// Ammo
-		if (b->ammo_classname != NULL)
+		if (b->fire_ammo != 0)
 		{
-			struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
-			ammo_index = ITEM_INDEX(ammo_item);
+			ammo_index = ITEM_INDEX(player->client->weapon.ammo_item);
 
 			if (player->client->pers.inventory[ammo_index] >= (int)(b->pickup_drop_ammo))
 			{
@@ -461,7 +460,7 @@ static void sPlayNoAmmoSound(struct edict_s* player)
 	player->pain_debounce_time = level.time + 2.0f;
 }
 
-static int sTraceRay(const struct edict_s* player, const struct Behaviour* b, vec3_t direction, trace_t* out)
+static int sTraceRay(const struct edict_s* player, const struct koiWeaponBehaviour* b, vec3_t direction, trace_t* out)
 {
 	vec3_t start;
 	VectorSet(start, player->s.origin[0], player->s.origin[1], player->s.origin[2] + player->viewheight);
@@ -476,7 +475,7 @@ static int sTraceRay(const struct edict_s* player, const struct Behaviour* b, ve
 		return 1;
 }
 
-static void sHitscan(const struct edict_s* player, const struct Behaviour* b)
+static void sHitscan(const struct edict_s* player, const struct koiWeaponBehaviour* b)
 {
 	int knockback = 10;
 	int means_of_death = MOD_UNKNOWN;
@@ -548,7 +547,9 @@ void koiWeaponThink(struct edict_s* player)
 	int fire = 0;
 
 	// Retrieve behaviour
-	const struct Behaviour* b = player->client->pers.weapon->info;
+	const struct koiWeaponBehaviour* b = player->client->weapon.b;
+	if (b == NULL) // Outside code didn't call Pickup() and Use()
+		return;
 
 	// Should we fire?
 	if ((player->client->buttons & BUTTON_ATTACK) == true)
@@ -556,18 +557,19 @@ void koiWeaponThink(struct edict_s* player)
 		// Fire!
 		if (player->client->weapon.wait < player->client->weapon.general_frame)
 		{
-			// No ammo
-			if (player->client->pers.inventory[player->client->ammo_index] < (int)(b->fire_ammo))
+			if (b->fire_ammo != 0)
 			{
-				sPlayNoAmmoSound(player);
-				koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
-				return;
-			}
+				// No ammo
+				if (player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] < (int)(b->fire_ammo))
+				{
+					sPlayNoAmmoSound(player);
+					koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
+					return;
+				}
 
-			// Subtract ammo
-			if (0)
-			{
-				player->client->pers.inventory[player->client->ammo_index] -= (int)(b->fire_ammo);
+				// Subtract ammo
+				if (((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
+					player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] -= (int)(b->fire_ammo);
 			}
 
 			// Fire,
@@ -596,7 +598,7 @@ void koiWeaponThink(struct edict_s* player)
 
 			// Weapons that are its own ammo are trow away immediatly
 			if (b->ammo_classname != NULL && strcmp(b->ammo_classname, b->classname) == 0 &&
-			    player->client->pers.inventory[player->client->ammo_index] == 0)
+			    player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] == 0)
 			{
 				koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
 				return;
