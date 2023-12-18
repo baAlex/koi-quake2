@@ -102,10 +102,10 @@ extern void ProjectPointOnPlane ( vec3_t dst , const vec3_t p , const vec3_t nor
 extern void AngleVectors2 ( vec3_t value1 , vec3_t angles ) ;
 extern void AngleVectors ( vec3_t angles , vec3_t forward , vec3_t right , vec3_t up ) ;
 extern void RotatePointAroundVector ( vec3_t dst , const vec3_t dir , const vec3_t point , float degrees ) ;
-extern void Drop_Weapon ( edict_t * ent , gitem_t * item ) ;
-extern void Use_Weapon ( edict_t * ent , gitem_t * item ) ;
-extern void Think_Weapon ( edict_t * ent ) ;
-extern qboolean Pickup_Weapon ( edict_t * ent , edict_t * other ) ;
+extern void koiWeaponDrop ( edict_t * ent , gitem_t * item ) ;
+extern void koiWeaponUse ( edict_t * ent , gitem_t * item ) ;
+extern void koiWeaponThink ( edict_t * ent ) ;
+extern qboolean koiWeaponPickup ( edict_t * ent , edict_t * other ) ;
 extern void PlayerNoise ( edict_t * who , vec3_t where , int type ) ;
 extern void ClientEndServerFrame ( edict_t * ent ) ;
 extern void G_SetClientFrame ( edict_t * ent ) ;

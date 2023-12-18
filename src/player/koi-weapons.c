@@ -19,7 +19,7 @@
  * 02111-1307, USA.
  */
 
-#include "../header/local.h"
+#include "koi-weapons.h"
 #include <stdint.h>
 
 
@@ -33,17 +33,12 @@
 //        Modify this variable wrong and everything explodes,
 //        luckily we don't need it too much here.
 
-//  - gitem_t* client_persistant_t::weapon;
+//  - struct gitem_s* client_persistant_t::weapon;
 //        Read multiple times from outside, so it needs to be
 //        valid at all times. The most problematic read is the
 //        view model.
 
-//  - gitem_t* client_persistant_t::weapon;
-//        Read multiple times from outside, so it needs to be
-//        valid at all times. The most problematic read is the
-//        view model.
-
-//  - gitem_t* client_persistant_t::lastweapon;
+//  - struct gitem_s* client_persistant_t::lastweapon;
 //        Only read in 'g_cmds.c', in 'weaplast' command that
 //        switch between last two weapons.
 
@@ -275,44 +270,46 @@ static const struct Behaviour* sFindBehaviour(const char* classname)
 }
 
 
-void PlayerNoise(edict_t* who, vec3_t where, int type) {}
+void PlayerNoise(struct edict_s* who, vec3_t where, int type) {}
 
 
 // ============================================
 
 
-qboolean Pickup_Weapon(edict_t* item_ent, edict_t* player_ent)
+qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player_ent)
 {
 	// Use item classname to find an appropiate behaviour,
 	// this checks if is an item of a weapon under our control
-	const struct Behaviour* b = sFindBehaviour(item_ent->item->classname);
+	const struct Behaviour* b = sFindBehaviour(weapon_item_ent->item->classname);
 	if (b == NULL)
 	{
-		gi.cprintf(player_ent, PRINT_HIGH, "Pickup_Weapon(): item '%s' is not a weapon!\n", item_ent->item->classname);
+		gi.cprintf(player_ent, PRINT_HIGH, "koiWeaponPickup(): item '%s' is not a weapon!\n",
+		           weapon_item_ent->item->classname);
 		goto return_failure;
 	}
 
-	gi.cprintf(player_ent, PRINT_HIGH, "Pickup_Weapon(): '%s', index: %i\n", b->classname, ITEM_INDEX(item_ent->item));
+	gi.cprintf(player_ent, PRINT_HIGH, "koiWeaponPickup(): '%s', index: %i\n", b->classname,
+	           ITEM_INDEX(weapon_item_ent->item));
 
 	// Mark player persistent inventory, outside code require this variable.
 	// Funny little detail, weapons accumulate in Quake 2, it's possible to carry
 	// more than one, also possible to drop them
-	player_ent->client->pers.inventory[ITEM_INDEX(item_ent->item)] += 1;
+	player_ent->client->pers.inventory[ITEM_INDEX(weapon_item_ent->item)] += 1;
 
 	// Add some ammo
 	if (strcmp(b->ammo_classname, b->classname) == 0)
 	{
 		// Weapon is its own ammo, so instead we increase
 		// how much weapons of this kind we carry
-		if ((item_ent->spawnflags & ITEM_WEAPON_WITH_NO_AMMO) == 0)
-			player_ent->client->pers.inventory[ITEM_INDEX(item_ent->item)] += ((int)(b->pickup_drop_ammo) - 1);
+		if ((weapon_item_ent->spawnflags & ITEM_WEAPON_WITH_NO_AMMO) == 0)
+			player_ent->client->pers.inventory[ITEM_INDEX(weapon_item_ent->item)] += ((int)(b->pickup_drop_ammo) - 1);
 	}
 	else if (b->ammo_classname != NULL)
 	{
 		// Ask inventory for what kind of ammo we must add
-		if ((item_ent->spawnflags & ITEM_WEAPON_WITH_NO_AMMO) == 0)
+		if ((weapon_item_ent->spawnflags & ITEM_WEAPON_WITH_NO_AMMO) == 0)
 		{
-			gitem_t* ammo_item = FindItemByClassname(b->ammo_classname);
+			struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
 			Add_Ammo(player_ent, ammo_item, (int)(b->pickup_drop_ammo));
 		}
 		else // Oh no! a weapon with no ammo
@@ -326,63 +323,63 @@ return_failure:
 	return false; // Weapon not taken
 }
 
-void Use_Weapon(edict_t* player, gitem_t* item)
+void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 {
 	const struct Behaviour* prev_b = player->client->pers.weapon->info;
-	const struct Behaviour* b = sFindBehaviour(item->classname);
+	const struct Behaviour* b = sFindBehaviour(weapon_item->classname);
 
 	if (b == NULL)
 	{
-		gi.cprintf(player, PRINT_HIGH, "Use_Weapon(): item '%s' is not a weapon!\n", item->classname);
+		gi.cprintf(player, PRINT_HIGH, "koiWeaponUse(): item '%s' is not a weapon!\n", weapon_item->classname);
 		return;
 	}
 
-	gi.cprintf(player, PRINT_HIGH, "Use_Weapon(): '%s', index: %i\n", b->classname, ITEM_INDEX(item));
+	gi.cprintf(player, PRINT_HIGH, "koiWeaponUse(): '%s', index: %i\n", b->classname, ITEM_INDEX(weapon_item));
 
 	// if (prev_b == b) // TODO, works bad at levels change
 	// 	return;
 
 	// Mark player persistent weapon, outside code require this variables
 	player->client->pers.lastweapon = player->client->pers.weapon;
-	player->client->pers.weapon = item;
+	player->client->pers.weapon = weapon_item;
 
 	// Mark player ammo index,
 	// asking first to inventory for ammo entity index
 	if (b->ammo_classname != NULL)
 	{
-		gitem_t* ammo_item = FindItemByClassname(b->ammo_classname);
+		struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
 		player->client->ammo_index = ITEM_INDEX(ammo_item);
 	}
 	else
 		player->client->ammo_index = 0;
 
 	// Keep the behaviour
-	item->info = b;
+	weapon_item->info = b;
 
 	// Reset state, not entirely tho
 	{
-		player->client->weapon_recoil = 1.0f; // Penalize change weapons
-		player->client->weapon_frame = 0;
-		player->client->weapon_wait = 0;
+		player->client->weapon.recoil = 1.0f; // Penalize change weapons
+		player->client->weapon.frame = 0;
+		player->client->weapon.wait = 0;
 	}
 }
 
-void Drop_Weapon(edict_t* player, gitem_t* weapon_item)
+void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 {
 	const struct Behaviour* b = sFindBehaviour(weapon_item->classname);
 
 	if (b == NULL)
 	{
-		gi.cprintf(player, PRINT_HIGH, "Drop_Weapon(): item '%s' is not a weapon!\n", weapon_item->classname);
+		gi.cprintf(player, PRINT_HIGH, "koiWeaponDrop(): item '%s' is not a weapon!\n", weapon_item->classname);
 		return;
 	}
 
-	gi.cprintf(player, PRINT_HIGH, "Drop_Weapon(): '%s', index: %i\n", b->classname, ITEM_INDEX(weapon_item));
+	gi.cprintf(player, PRINT_HIGH, "koiWeaponDrop(): '%s', index: %i\n", b->classname, ITEM_INDEX(weapon_item));
 
 	if (player->client->pers.inventory[ITEM_INDEX(weapon_item)] <= 0)
 	{
 		// We already drop all weapons of this kind
-		gi.cprintf(player, PRINT_HIGH, "Drop_Weapon(): no weapon '%s' in inventory\n", b->classname);
+		gi.cprintf(player, PRINT_HIGH, "koiWeaponDrop(): no weapon '%s' in inventory\n", b->classname);
 		return;
 	}
 
@@ -397,7 +394,7 @@ void Drop_Weapon(edict_t* player, gitem_t* weapon_item)
 		// Ammo
 		if (b->ammo_classname != NULL)
 		{
-			gitem_t* ammo_item = FindItemByClassname(b->ammo_classname);
+			struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
 			ammo_index = ITEM_INDEX(ammo_item);
 
 			if (player->client->pers.inventory[ammo_index] >= (int)(b->pickup_drop_ammo))
@@ -430,7 +427,7 @@ void Drop_Weapon(edict_t* player, gitem_t* weapon_item)
 	}
 
 	// Drop weapon (spawns an item)
-	edict_t* dropped_item = Drop_Item(player, weapon_item);
+	struct edict_s* dropped_item = Drop_Item(player, weapon_item);
 	dropped_item->spawnflags |= (tag_with | DROPPED_ITEM | DROPPED_PLAYER_ITEM); // Tags used in Dm to respawn items
 
 	// Should we change current weapon?
@@ -440,7 +437,7 @@ void Drop_Weapon(edict_t* player, gitem_t* weapon_item)
 	    // We don't have any ammo for it
 	    (ammo_index > 0 && player->client->pers.inventory[ammo_index] == 0))
 	{
-		Use_Weapon(player, FindItemByClassname("weapon_blaster"));
+		koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
 	}
 }
 
@@ -454,7 +451,7 @@ static inline float sEasing(float x, float e)
 	return x = (x) / (x + e * (1.0F - x) + epsilon);
 }
 
-static void sPlayNoAmmoSound(edict_t* player)
+static void sPlayNoAmmoSound(struct edict_s* player)
 {
 	// TODO: this function is similar to others in 'view.c', merge them
 	if (level.time < player->pain_debounce_time)
@@ -464,7 +461,7 @@ static void sPlayNoAmmoSound(edict_t* player)
 	player->pain_debounce_time = level.time + 2.0f;
 }
 
-static int sTraceRay(const edict_t* player, const struct Behaviour* b, vec3_t direction, trace_t* out)
+static int sTraceRay(const struct edict_s* player, const struct Behaviour* b, vec3_t direction, trace_t* out)
 {
 	vec3_t start;
 	VectorSet(start, player->s.origin[0], player->s.origin[1], player->s.origin[2] + player->viewheight);
@@ -479,7 +476,7 @@ static int sTraceRay(const edict_t* player, const struct Behaviour* b, vec3_t di
 		return 1;
 }
 
-static void sHitscan(const edict_t* player, const struct Behaviour* b)
+static void sHitscan(const struct edict_s* player, const struct Behaviour* b)
 {
 	int knockback = 10;
 	int means_of_death = MOD_UNKNOWN;
@@ -496,7 +493,7 @@ static void sHitscan(const edict_t* player, const struct Behaviour* b)
 	vec3_t direction;
 	vec3_t direction_forward;
 	{
-		const float recoil = player->client->weapon_recoil;
+		const float recoil = player->client->weapon.recoil;
 
 		const float q = frandk() * M_PI * 2.0f;                 // Polar to avoid a square spread
 		const float r = powf(frandk(), 2.0f) * spread * recoil; // Bias towards centre
@@ -546,7 +543,7 @@ static void sHitscan(const edict_t* player, const struct Behaviour* b)
 	}
 }
 
-void Think_Weapon(edict_t* player)
+void koiWeaponThink(struct edict_s* player)
 {
 	int fire = 0;
 
@@ -557,13 +554,13 @@ void Think_Weapon(edict_t* player)
 	if ((player->client->buttons & BUTTON_ATTACK) == true)
 	{
 		// Fire!
-		if (player->client->weapon_wait < player->client->weapon_general_frame)
+		if (player->client->weapon.wait < player->client->weapon.general_frame)
 		{
 			// No ammo
 			if (player->client->pers.inventory[player->client->ammo_index] < (int)(b->fire_ammo))
 			{
 				sPlayNoAmmoSound(player);
-				Use_Weapon(player, FindItemByClassname("weapon_blaster"));
+				koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
 				return;
 			}
 
@@ -576,17 +573,17 @@ void Think_Weapon(edict_t* player)
 			// Fire,
 			// before recoil so first shot always goes to centre
 			fire = 1;
-			player->client->weapon_wait = player->client->weapon_general_frame + (unsigned)(b->fire_delay);
+			player->client->weapon.wait = player->client->weapon.general_frame + (unsigned)(b->fire_delay);
 
 			sHitscan(player, b);
 
 			// Developers, developers, developers
-			player->client->ps.stats[30] = (short)(player->client->weapon_recoil * 100.0f);
+			player->client->ps.stats[30] = (short)(player->client->weapon.recoil * 100.0f);
 
 			// Apply recoil
-			player->client->weapon_recoil += b->recoil_step;
-			if (player->client->weapon_recoil > 1.0f)
-				player->client->weapon_recoil = 1.0f;
+			player->client->weapon.recoil += b->recoil_step;
+			if (player->client->weapon.recoil > 1.0f)
+				player->client->weapon.recoil = 1.0f;
 
 			// Client effect
 			if (b->muzzle_flash != NO_MUZZLE_FLASH)
@@ -601,7 +598,7 @@ void Think_Weapon(edict_t* player)
 			if (b->ammo_classname != NULL && strcmp(b->ammo_classname, b->classname) == 0 &&
 			    player->client->pers.inventory[player->client->ammo_index] == 0)
 			{
-				Use_Weapon(player, FindItemByClassname("weapon_blaster"));
+				koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
 				return;
 			}
 		}
@@ -611,30 +608,30 @@ void Think_Weapon(edict_t* player)
 	if (fire == 0)
 	{
 		// Restore recoil
-		player->client->weapon_recoil -= b->recoil_restore_step;
-		if (player->client->weapon_recoil < 0.0f)
-			player->client->weapon_recoil = 0.0f;
+		player->client->weapon.recoil -= b->recoil_restore_step;
+		if (player->client->weapon.recoil < 0.0f)
+			player->client->weapon.recoil = 0.0f;
 
 		// View recoil trough an easing function
-		// player->client->weapon_view_recoil =
-		//    sEasing(player->client->weapon_recoil / b->max_recoil, 3.0f) * b->max_recoil;
+		// player->client->weapon.view_recoil =
+		//    sEasing(player->client->weapon.recoil / b->max_recoil, 3.0f) * b->max_recoil;
 	}
 	else
 	{
 		// While firing view recoil is simply linear
-		// player->client->weapon_view_recoil = player->client->weapon_recoil;
+		// player->client->weapon.view_recoil = player->client->weapon.recoil;
 	}
 
 	// We need to trick client's model interpolation
-	if (player->client->weapon_frame == 0)
+	if (player->client->weapon.frame == 0)
 		player->client->ps.gunframe = (int)(b->idle_frame);
-	if (player->client->weapon_frame == 1)
+	if (player->client->weapon.frame == 1)
 		player->client->ps.gunindex = gi.modelindex(b->model_name);
 
 	// Update state
-	player->client->weapon_frame += 1;
-	player->client->weapon_general_frame += 1;
+	player->client->weapon.frame += 1;
+	player->client->weapon.general_frame += 1;
 
 	// Developers, developers, developers
-	player->client->ps.stats[31] = (short)(player->client->weapon_recoil * 100.0f);
+	player->client->ps.stats[31] = (short)(player->client->weapon.recoil * 100.0f);
 }

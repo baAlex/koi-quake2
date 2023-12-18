@@ -621,8 +621,6 @@ gitem_t *FindItemByClassname(char *classname);
 edict_t *Drop_Item(edict_t *ent, gitem_t *item);
 void SetRespawn(edict_t *ent, float delay);
 void SpawnItem(edict_t *ent, gitem_t *item);
-void Think_Weapon(edict_t *ent);
-void Use_Weapon(edict_t *ent, gitem_t *item);
 int ArmorIndex(edict_t *ent);
 int PowerArmorType(edict_t *ent);
 gitem_t *GetItemByIndex(int index);
@@ -823,6 +821,10 @@ void ReadGame(const char *filename);
 void WriteGame(const char *filename, qboolean autosave);
 void SpawnEntities(const char *mapname, char *entities, const char *spawnpoint);
 
+
+#include "../player/koi-weapons.h"
+
+
 /* ============================================================================ */
 
 /* client_t->anim_priority */
@@ -937,11 +939,8 @@ struct gclient_s
 	int old_waterlevel;
 	int breather_sound;
 
-	float weapon_recoil; /* view.c, weapons.c, for weapon animation and bullet spread */
-	float weapon_view_recoil; /* view.c, weapons.c, for weapon animation and bullet spread */
-	unsigned weapon_frame; /* weapon.c */
-	unsigned weapon_general_frame; /* weapon.c */
-	unsigned weapon_wait; /* weapon.c */
+	struct koiWeaponState weapon;
+
 	int prev_health; /* client.c, to regenerate health */
 	float wait2; /* view.c, to flash the screen if health is critical */
 	float gun_angle_inertia[3]; /* view.c, to apply inertia to gun model */

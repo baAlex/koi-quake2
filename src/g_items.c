@@ -29,10 +29,6 @@
 #define HEALTH_IGNORE_MAX 1
 #define HEALTH_TIMED 2
 
-qboolean Pickup_Weapon(edict_t *ent, edict_t *other);
-void Use_Weapon(edict_t *ent, gitem_t *inv);
-void Drop_Weapon(edict_t *ent, gitem_t *inv);
-
 void Weapon_Blaster(edict_t *ent);
 void Weapon_Shotgun(edict_t *ent);
 void Weapon_SuperShotgun(edict_t *ent);
@@ -713,22 +709,14 @@ Add_Ammo(edict_t *ent, gitem_t *item, int count)
 qboolean
 Pickup_Ammo(edict_t *ent, edict_t *other)
 {
-	int oldcount;
 	int count;
-	qboolean weapon;
 
 	if (!ent || !other)
 	{
 		return false;
 	}
 
-	weapon = (ent->item->flags & IT_WEAPON);
-
-	if ((weapon) && ((int)dmflags->value & DF_INFINITE_AMMO))
-	{
-		count = 1000;
-	}
-	else if (ent->count)
+	if (ent->count)
 	{
 		count = ent->count;
 	}
@@ -737,21 +725,9 @@ Pickup_Ammo(edict_t *ent, edict_t *other)
 		count = ent->item->quantity;
 	}
 
-	oldcount = other->client->pers.inventory[ITEM_INDEX(ent->item)];
-
 	if (!Add_Ammo(other, ent->item, count))
 	{
 		return false;
-	}
-
-	if (weapon && !oldcount)
-	{
-		if ((other->client->pers.weapon != ent->item) &&
-			(!deathmatch->value ||
-			 (other->client->pers.weapon == FindItem("blaster"))))
-		{
-			Use_Weapon(other, ent->item); /* baAlex, TODO: works? */
-		}
 	}
 
 	if (!(ent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)) &&
@@ -1805,8 +1781,8 @@ static const gitem_t gameitemlist[] = {
 	   always owned, never in the world */
 	{
 		"weapon_blaster",
-		Pickup_Weapon,
-		Use_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
 		NULL,
 		NULL,
 		"misc/w_pkup.wav",
@@ -1827,9 +1803,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_shotgun (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_shotgun",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_shotg/tris.md2", EF_ROTATE,
@@ -1849,9 +1825,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_supershotgun (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_supershotgun",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_shotg2/tris.md2", EF_ROTATE,
@@ -1871,9 +1847,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_machinegun (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_machinegun",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_machn/tris.md2", EF_ROTATE,
@@ -1893,9 +1869,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_chaingun (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_chaingun",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_chain/tris.md2", EF_ROTATE,
@@ -1915,9 +1891,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED ammo_grenades (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"ammo_grenades",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/am_pkup.wav",
 		"models/items/ammo/grenades/medium/tris.md2", 0,
@@ -1937,9 +1913,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_grenadelauncher (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_grenadelauncher",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_launch/tris.md2", EF_ROTATE,
@@ -1959,9 +1935,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_rocketlauncher (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_rocketlauncher",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_rocket/tris.md2", EF_ROTATE,
@@ -1981,9 +1957,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_hyperblaster (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_hyperblaster",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_hyperb/tris.md2", EF_ROTATE,
@@ -2003,9 +1979,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_railgun (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_railgun",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_rail/tris.md2", EF_ROTATE,
@@ -2025,9 +2001,9 @@ static const gitem_t gameitemlist[] = {
 	/* QUAKED weapon_bfg (.3 .3 1) (-16 -16 -16) (16 16 16) */
 	{
 		"weapon_bfg",
-		Pickup_Weapon,
-		Use_Weapon,
-		Drop_Weapon,
+		koiWeaponPickup,
+		koiWeaponUse,
+		koiWeaponDrop,
 		NULL,
 		"misc/w_pkup.wav",
 		"models/weapons/g_bfg/tris.md2", EF_ROTATE,

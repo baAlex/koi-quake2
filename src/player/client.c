@@ -1798,7 +1798,7 @@ PutClientInServer(edict_t *ent)
 	gi.linkentity(ent);
 
 	/* force the current weapon up */
-	Use_Weapon(ent, client->pers.weapon);
+	koiWeaponUse(ent, client->pers.weapon);
 }
 
 /*
@@ -2381,7 +2381,7 @@ ClientThink(edict_t *ent, usercmd_t *ucmd)
 		else if (!client->weapon_thunk)
 		{
 			client->weapon_thunk = true;
-			Think_Weapon(ent);
+			koiWeaponThink(ent);
 		}
 	}
 
@@ -2455,7 +2455,7 @@ ClientBeginServerFrame(edict_t *ent)
 	/* run weapon animations if it hasn't been done by a ucmd_t */
 	if (!client->weapon_thunk && !client->resp.spectator)
 	{
-		Think_Weapon(ent);
+		koiWeaponThink(ent);
 	}
 	else
 	{
