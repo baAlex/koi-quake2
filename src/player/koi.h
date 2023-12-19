@@ -1,9 +1,28 @@
+/*
+ * Copyright (C) 1997-2001 Id Software, Inc.
+ * Copyright (C) 2023 Alexander Brandt.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or (at
+ * your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
+ */
 
+#ifndef KOI_H
+#define KOI_H
 
 #include <stdbool.h>
-
-#ifndef NEW_H
-#define NEW_H
 
 
 // Health regeneration (client.c)
@@ -43,7 +62,7 @@ static const float CRITICAL_HEALTH_DAMAGE_FLASH_FADE_OUT = DAMAGE_FLASH_FADE_OUT
 // ==================
 static const bool WALKCYCLE = true;
 
-static const float WALKCYCLE_RUN_SPEED = 297.0f; // Yamagi use 225, Carmack 210
+static const float WALKCYCLE_RUN_SPEED = 297.0f;  // Yamagi use 225, Carmack 210
 static const float WALKCYCLE_WALK_SPEED = 100.0f; // This one is Carmack
 
 static const float WALKCYCLE_FREQUENCY[3] = {1.0f, 0.75f, 0.60f}; // Running, walking, otherwise
@@ -68,18 +87,12 @@ static const int GUN_BOB_ROLL_WAVE[3] = {1, 1, 1};
 // - 2 = abs(sin(phase * 2)) !!! Enters in phase with the others...
 // ... and a '(fabsf(sinf(ent->client->bobtime * 2.0f)) - 0.5f) * 2.0f' don't help either
 
-// Gun angle recoil (view.c)
-// =========================
-static const bool GUN_ANGLE_RECOIL = false; // WALKCYCLE not required, but helps
-
-static const float GUN_ANGLE_RECOIL_SCALE[3] = {1.8F * 1.5f, 1.5F * 1.5f, 1.0F * 1.5f}; // Running, walking, otherwise
-
 
 // Gun offset recoil (view.c)
 // ==========================
-static const bool GUN_OFFSET_RECOIL = false; // WALKCYCLE not required, but helps
+static const bool GUN_OFFSET_RECOIL = true; // WALKCYCLE not required, but helps
 
-static const float GUN_OFFSET_RECOIL_SCALE[3] = {1.8F, 1.5F, 1.0F}; // Running, walking, otherwise
+static const float GUN_OFFSET_RECOIL_SCALE[3] = {0.7F, 0.6F, 0.5F}; // Running, walking, otherwise
 
 
 // Gun angle inertia (view.c)

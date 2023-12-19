@@ -25,7 +25,8 @@
  */
 
 #include "../header/local.h"
-#include "../header/new.h"
+
+#include "koi.h"
 
 void
 MoveClientToIntermission(edict_t *ent)

@@ -25,8 +25,9 @@
  */
 
 #include "../header/local.h"
-#include "../header/new.h"
 #include "../monster/misc/player.h"
+
+#include "koi.h"
 
 void ClientUserinfoChanged(edict_t *ent, char *userinfo);
 void SP_misc_teleporter_dest(edict_t *ent);

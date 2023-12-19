@@ -22,12 +22,59 @@
 #ifndef KOI_WEAPONS_H
 #define KOI_WEAPONS_H
 
-struct koiWeaponBehaviour;
+#include <stdint.h>
+
+
+struct koiWeaponBehaviour
+{
+	const char* print_name;
+	const char* classname; // Set in editor
+
+	// Ammo
+	const char* ammo_classname;
+	uint8_t pickup_drop_ammo; // Ammo to add at pickup, to subtract at drop
+	uint8_t fire_ammo;
+
+	// Model
+	const char* model_name;
+	uint8_t idle_frame;
+	uint8_t take_frames[4];
+
+	// Behaviour
+	uint8_t fire_delay;
+	uint8_t muzzle_flash;
+
+	// Projectile
+	uint8_t projectiles_no; // Like pellets in a shotgun
+	uint8_t damage;         // Per projectile
+	uint8_t impact_effect;  // 'TE_' prefixed client effect
+	float projectiles_spray;
+
+	// Recoil
+	float recoil_step;         // 0, 1
+	float recoil_restore_step; // 0, 1
+	float spread;              // In angles?
+
+	float spread_crouch_scale;
+	float view_recoil_scale;
+};
+
+enum koiWeaponStage
+{
+	KOI_WEAPON_TAKE,
+	KOI_WEAPON_IDLE,
+	// KOI_WEAPON_WARM_UP,
+	KOI_WEAPON_FIRE,
+	// KOI_WEAPON_RELOAD,
+	// KOI_WEAPON_COOLDOWN
+};
 
 struct koiWeaponState
 {
 	struct gitem_s* ammo_item; // May be NULL
 
+	enum koiWeaponStage stage;
+	int fired;
 	const struct koiWeaponBehaviour* b;
 	float recoil;
 	unsigned frame;

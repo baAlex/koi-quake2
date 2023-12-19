@@ -25,8 +25,9 @@
  */
 
 #include "../header/local.h"
-#include "../header/new.h"
 #include "../monster/misc/player.h"
+
+#include "koi.h"
 
 
 static void sPlayPainSound(edict_t* ent)
@@ -1022,11 +1023,11 @@ ClientEndServerFrame(edict_t *ent)
 
 	/* Gun base angles */
 	VectorClear(ent->client->ps.gunangles);
-	if (ent->client->weapon.frame <= 4)
-	{
+	//if (ent->client->weapon.frame <= 4)
+	//{
 		/* baAlex, TODO: hardcoded values */
-		ent->client->ps.gunangles[0] = (1.0f - sEasing((float)(ent->client->weapon.frame) / 4.0f, 2.0f)) * (30.0f);
-	}
+	//	ent->client->ps.gunangles[0] = (1.0f - sEasing((float)(ent->client->weapon.frame) / 4.0f, 2.0f)) * (30.0f);
+	//}
 
 	/* Gun bob */
 	if (GUN_BOB == true && WALKCYCLE == true)
@@ -1056,17 +1057,6 @@ ClientEndServerFrame(edict_t *ent)
 			ent->client->ps.gunangles[ROLL] += waveform[GUN_BOB_ROLL_WAVE[2]] * GUN_BOB_ROLL[2];
 		}
 	}
-
-	/* Gun angle recoil */
-	/*if (GUN_ANGLE_RECOIL == true)
-	{
-		if (xyspeed > WALKCYCLE_RUN_SPEED)
-			ent->client->ps.gunangles[0] -= ent->client->weapon_view_recoil * GUN_ANGLE_RECOIL_SCALE[0];
-		else if (xyspeed > WALKCYCLE_WALK_SPEED)
-			ent->client->ps.gunangles[0] -= ent->client->weapon_view_recoil * GUN_ANGLE_RECOIL_SCALE[1];
-		else
-			ent->client->ps.gunangles[0] -= ent->client->weapon_view_recoil * GUN_ANGLE_RECOIL_SCALE[0] * ducked_attenuation;
-	}*/
 
 	/* Gun angle inertia */
 	if (GUN_ANGLE_INERTIA == true)
@@ -1123,15 +1113,15 @@ ClientEndServerFrame(edict_t *ent)
 			VectorClear(offset);
 
 		/* Recoil */
-		/*if (GUN_OFFSET_RECOIL == true)
+		if (GUN_OFFSET_RECOIL == true)
 		{
 			if (xyspeed > WALKCYCLE_RUN_SPEED)
-				offset[0] -= ent->client->weapon_view_recoil * GUN_OFFSET_RECOIL_SCALE[0];
+				offset[0] -= ent->client->weapon.recoil * ent->client->weapon.b->view_recoil_scale * GUN_OFFSET_RECOIL_SCALE[0];
 			else if (xyspeed > WALKCYCLE_WALK_SPEED)
-				offset[0] -= ent->client->weapon_view_recoil * GUN_OFFSET_RECOIL_SCALE[1];
+				offset[0] -= ent->client->weapon.recoil * ent->client->weapon.b->view_recoil_scale * GUN_OFFSET_RECOIL_SCALE[1];
 			else
-				offset[0] -= ent->client->weapon_view_recoil * GUN_OFFSET_RECOIL_SCALE[2] * ducked_attenuation;
-		}*/
+				offset[0] -= ent->client->weapon.recoil * ent->client->weapon.b->view_recoil_scale * GUN_OFFSET_RECOIL_SCALE[2] * ducked_attenuation;
+		}
 
 		/* Add things together */
 		VectorClear(ent->client->ps.gunoffset);
