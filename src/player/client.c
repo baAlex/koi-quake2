@@ -1876,6 +1876,28 @@ ClientBegin(edict_t *ent)
 			ent->client->ps.pmove.delta_angles[i] = ANGLE2SHORT(
 					ent->client->ps.viewangles[i]);
 		}
+
+		/* baAlex: Fun fact, 'client' doesn't keep any pointer except for 'chase_target' [1],
+		   a multiplayer feature that gets memset'ed in PutClientInServer() (see above in
+		   ClientBeginDeathmatch()). Anyway, following memset() is because when loading a
+		   game (in single player) pointers in 'client' are saved as usual and then loaded
+		   as, well... usual, except that now pointers point to an address of the previous
+		   session. As always with this kind of typical C error, everything works fine
+		   between a single session but once the game is closed, executed again, and loads
+		   a game, it crashes. Obviously the OS is using different addresses now.
+
+		   All this explanation answers why Carmack didn't did a memset here, it's not
+		   needed, as no pointer is used, so all fields are properly loaded from a file.
+		   Bad news: I'm using pointers, good news: they can be NULL most of the time */
+
+		memset(&ent->client->weapon, 0, sizeof(struct koiWeaponState));
+		koiWeaponUse(ent, ent->client->pers.weapon); /* Usually it's called in PutClientInServer() */
+
+		/* [1] Kinda, there are pointer in 'pers', but those point to static data. */
+		/*     UPDATE: and those also break between compilations, in 'clientfields.h' the save
+		       module has measures for this case. */
+		/* Finally yhis memset isn't needed in the branch below since PutClientInServer()
+		   does it for us. */
 	}
 	else
 	{

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 1997-2001 Id Software, Inc.
- * Copyright (C) 2023 Alexander Brandt.
+ * Copyright (C) 2023 Alexander Brandt
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,9 +53,8 @@
 
 
 #define NO_MUZZLE_FLASH 255
-#define WEAPONS_NO 8
 
-static struct koiWeaponBehaviour BEHAVIOURS[WEAPONS_NO] = {
+static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
     {
         .print_name = "Blaster",
         .classname = "weapon_blaster",
@@ -98,7 +97,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[WEAPONS_NO] = {
         .damage = 4,
         .projectiles_no = 12,
         .impact_effect = TE_SHOTGUN,
-        .projectiles_spray = 8.0f,
+        .projectiles_spray = 10.0f,
 
         .recoil_step = 1.0f,
         .recoil_restore_step = 1.0f / (10.0f - 1.0f), // Match old fire delay, newer is faster
@@ -121,7 +120,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[WEAPONS_NO] = {
         .fire_delay = 0, // "10 bullets per second" [*1]
         .muzzle_flash = MZ_MACHINEGUN,
 
-        .damage = 8,
+        .damage = 9,
         .projectiles_no = 1,
         .impact_effect = TE_GUNSHOT,
 
@@ -235,7 +234,7 @@ static const struct koiWeaponBehaviour* sFindBehaviour(const char* classname)
 {
 	const struct koiWeaponBehaviour* b = NULL;
 
-	for (int i = 0; i < WEAPONS_NO; i += 1)
+	for (int i = 0; i < KOI_WEAPONS_NO; i += 1)
 	{
 		if (strcmp(classname, BEHAVIOURS[i].classname) == 0)
 		{
@@ -414,6 +413,10 @@ void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 	}
 }
 
+void koiWeaponDev(const struct edict_s* player)
+{
+}
+
 
 // ============================================
 
@@ -521,13 +524,13 @@ static void sTakeStage(struct edict_s* player)
 	const struct koiWeaponBehaviour* b = player->client->weapon.b;
 
 	// We need to trick client's model interpolation
-	if (player->client->weapon.frame < 4)
+	if (player->client->weapon.frame < KOI_TAKE_FRAMES_NO)
 		player->client->ps.gunframe = (int)(b->take_frames[player->client->weapon.frame]);
 	if (player->client->weapon.frame == 1)
 		player->client->ps.gunindex = gi.modelindex(b->model_name);
 
 	// Animation ends
-	if (player->client->weapon.frame == 4) // Change stage!
+	if (player->client->weapon.frame == KOI_TAKE_FRAMES_NO) // Change stage!
 	{
 		player->client->ps.gunframe = (int)(b->idle_frame);
 		player->client->weapon.stage = KOI_WEAPON_IDLE;

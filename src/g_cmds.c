@@ -1865,6 +1865,12 @@ ClientCommand(edict_t *ent)
 		return;
 	}
 
+	if (Q_stricmp(cmd, "koidev") == 0)
+	{
+		koiWeaponDev(ent);
+		return;
+	}
+
 	if (level.intermissiontime)
 	{
 		return;

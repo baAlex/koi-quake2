@@ -1113,7 +1113,7 @@ ClientEndServerFrame(edict_t *ent)
 			VectorClear(offset);
 
 		/* Recoil */
-		if (GUN_OFFSET_RECOIL == true)
+		if (GUN_OFFSET_RECOIL == true && ent->client->weapon.b != NULL)
 		{
 			if (xyspeed > WALKCYCLE_RUN_SPEED)
 				offset[0] -= ent->client->weapon.recoil * ent->client->weapon.b->view_recoil_scale * GUN_OFFSET_RECOIL_SCALE[0];

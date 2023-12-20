@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 1997-2001 Id Software, Inc.
- * Copyright (C) 2023 Alexander Brandt.
+ * Copyright (C) 2023 Alexander Brandt
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,9 @@
 #include <stdint.h>
 
 
+#define KOI_TAKE_FRAMES_NO 4 // For all weapons
+#define KOI_WEAPONS_NO 8
+
 struct koiWeaponBehaviour
 {
 	const char* print_name;
@@ -38,7 +41,7 @@ struct koiWeaponBehaviour
 	// Model
 	const char* model_name;
 	uint8_t idle_frame;
-	uint8_t take_frames[4];
+	uint8_t take_frames[KOI_TAKE_FRAMES_NO];
 
 	// Behaviour
 	uint8_t fire_delay;
@@ -88,5 +91,7 @@ qboolean koiWeaponPickup(struct edict_s* item_ent, struct edict_s* player_ent);
 void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item);
 void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item);
 void koiWeaponThink(struct edict_s* player);
+
+void koiWeaponDev(const struct edict_s* player);
 
 #endif
