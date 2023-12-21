@@ -68,7 +68,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .fire_delay = 3 - 1, // "Two shots per second" [*1]
         .muzzle_flash = MZ_BLASTER,
 
-        .damage = 10,
+        .damage = 10, // "10 in single play, 15 in deathmatch" [*1]
         .projectiles_no = 1,
         .impact_effect = TE_BLASTER,
 
@@ -83,7 +83,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .classname = "weapon_shotgun",
 
         .ammo_classname = "ammo_shells",
-        .pickup_drop_ammo = 10,
+        .pickup_drop_ammo = 10, // "10 Per Box" [*1]
         .fire_ammo = 1,
 
         .model_name = "models/weapons/v_shotg/tris.md2",
@@ -94,7 +94,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .fire_delay = 9 - 1, // A bit faster
         .muzzle_flash = MZ_SHOTGUN,
 
-        .damage = 4,
+        .damage = 4, // "4 per pellet, 12 pellets" [*1]
         .projectiles_no = 12,
         .impact_effect = TE_SHOTGUN,
         .projectiles_spray = 10.0f,
@@ -104,13 +104,17 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .spread = 50.0f,                              // Up to 100 is tolerable
         .spread_crouch_scale = 0.2f,
         .view_recoil_scale = 5.0f,
+
+        .reload_sound_name = "weapons/Shotgre.wav",
+        .reload_step = 1.0f / (44.0f),
+        .magazine_size = 10,
     },
     {
         .print_name = "Machine Gun",
         .classname = "weapon_machinegun",
 
         .ammo_classname = "ammo_bullets",
-        .pickup_drop_ammo = 50,
+        .pickup_drop_ammo = 50, // "50 Per Box" [*1]
         .fire_ammo = 1,
 
         .model_name = "models/weapons/v_machn/tris.md2",
@@ -120,7 +124,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .fire_delay = 0, // "10 bullets per second" [*1]
         .muzzle_flash = MZ_MACHINEGUN,
 
-        .damage = 9,
+        .damage = 8, // "8 per bullet" [*1]
         .projectiles_no = 1,
         .impact_effect = TE_GUNSHOT,
 
@@ -129,6 +133,10 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .spread = 10.0f,
         .spread_crouch_scale = 0.4f,
         .view_recoil_scale = 7.0f,
+
+        .reload_sound_name = "weapons/machgre.wav",
+        .reload_step = 1.0f / (32.0f),
+        .magazine_size = 50,
     },
     {
         .print_name = "Rocket Launcher",
@@ -153,7 +161,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .classname = "weapon_hyperblaster",
 
         .ammo_classname = "ammo_cells",
-        .pickup_drop_ammo = 50,
+        .pickup_drop_ammo = 50, // "50 Per Battery" [*1]
         .fire_ammo = 1,
 
         .model_name = "models/weapons/v_hyperb/tris.md2",
@@ -163,7 +171,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .fire_delay = 0, // "10 discharges (cells) per second" [*1]
         .muzzle_flash = MZ_HYPERBLASTER,
 
-        .damage = (10 + 20) / 2,
+        .damage = 10, // "10 single, 20 deathmatch" [*1]
         .projectiles_no = 1,
         .impact_effect = TE_BLASTER,
 
@@ -172,6 +180,10 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .spread = 12.0f,
         .spread_crouch_scale = 0.4f,
         .view_recoil_scale = 2.5f,
+
+        .reload_sound_name = "weapons/hyprbre.wav",
+        .reload_step = 1.0f / (36.0f),
+        .magazine_size = 50,
     },
     {
         .print_name = "Railgun",
@@ -246,11 +258,29 @@ static const struct koiWeaponBehaviour* sFindBehaviour(const char* classname)
 	return b;
 }
 
+static size_t sBehaviourIndex(const struct koiWeaponBehaviour* b)
+{
+	return ((size_t)(b) - (size_t)(BEHAVIOURS)) / sizeof(struct koiWeaponBehaviour);
+}
 
 void PlayerNoise(struct edict_s* who, vec3_t where, int type) {}
 
 
 // ============================================
+
+
+static void sPlaySoundAndWait(struct edict_s* player, const char* filename, float wait)
+{
+	if (player->client->weapon.sound_wait > level.time)
+		return;
+
+	gi.sound(player, CHAN_AUTO, gi.soundindex(filename), 1, ATTN_NORM, 0);
+	player->client->weapon.sound_wait = level.time + wait;
+}
+static void sPlaySound(struct edict_s* player, const char* filename)
+{
+	gi.sound(player, 7, gi.soundindex(filename), 1, ATTN_NORM, 0);
+}
 
 
 qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player_ent)
@@ -339,7 +369,14 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 		// player->client->weapon.recoil = 1.0f; // Penalize change weapons
 		player->client->weapon.recoil = 0.0f; // TODO: every weapon should have its own recoil value
 		player->client->weapon.frame = 0;
-		player->client->weapon.wait = 0;
+		player->client->weapon.fire_wait = 0;
+
+		player->client->ps.stats[28] = 0;
+		player->client->ps.stats[29] = 0;
+		player->client->ps.stats[30] = 0;
+		player->client->ps.stats[31] = 0;
+
+		sPlaySound(player, "weapons/change.wav");
 	}
 }
 
@@ -373,7 +410,8 @@ void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 		// Ammo
 		if (b->fire_ammo != 0)
 		{
-			ammo_index = ITEM_INDEX(player->client->weapon.ammo_item);
+			struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
+			ammo_index = ITEM_INDEX(ammo_item);
 
 			if (player->client->pers.inventory[ammo_index] >= (int)(b->pickup_drop_ammo))
 				player->client->pers.inventory[ammo_index] -= (int)(b->pickup_drop_ammo);
@@ -413,9 +451,7 @@ void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 	}
 }
 
-void koiWeaponDev(const struct edict_s* player)
-{
-}
+void koiWeaponDev(const struct edict_s* player) {}
 
 
 // ============================================
@@ -425,16 +461,6 @@ static inline float sEasing(float x, float e)
 {
 	const float epsilon = 1.0F / 1024.0F;
 	return x = (x) / (x + e * (1.0F - x) + epsilon);
-}
-
-static void sPlayNoAmmoSound(struct edict_s* player)
-{
-	// TODO: this function is similar to others in 'view.c', merge them
-	if (level.time < player->pain_debounce_time)
-		return;
-
-	gi.sound(player, CHAN_VOICE, gi.soundindex("weapons/noammo.wav"), 1, ATTN_NORM, 0);
-	player->pain_debounce_time = level.time + 2.0f;
 }
 
 static int sTraceRay(const struct edict_s* player, const struct koiWeaponBehaviour* b, vec3_t direction, trace_t* out)
@@ -558,28 +584,30 @@ static void sFireStage(struct edict_s* player)
 	}
 
 	// Can we fire?
-	if (player->client->weapon.wait >= player->client->weapon.general_frame)
+	if (player->client->weapon.fire_wait >= player->client->weapon.general_frame)
 		return;
 
 	// Ammo managment
 	if (b->fire_ammo != 0)
 	{
 		// No ammo
-		if (player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] < (int)(b->fire_ammo))
+		if (player->client->pers.magazines[sBehaviourIndex(b)] < (int)(b->fire_ammo)) // Change stage!
 			goto no_ammo;
 
 		// Subtract ammo
 		if (((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
-			player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] -= (int)(b->fire_ammo);
+			player->client->pers.magazines[sBehaviourIndex(b)] -= (int)(b->fire_ammo);
 	}
 
 	// Fire,
 	// before recoil so first shot always goes to centre
-	player->client->weapon.wait = player->client->weapon.general_frame + (unsigned)(b->fire_delay);
+	player->client->weapon.fire_wait = player->client->weapon.general_frame + (unsigned)(b->fire_delay);
 	sHitscan(player, b);
 
 	// Developers, developers, developers
-	player->client->ps.stats[30] = (short)(player->client->weapon.recoil * 100.0f);
+	{
+		player->client->ps.stats[30] = (short)(player->client->weapon.recoil * 100.0f);
+	}
 
 	// Apply recoil
 	player->client->weapon.recoil += b->recoil_step;
@@ -598,27 +626,68 @@ static void sFireStage(struct edict_s* player)
 	// No ammo?, change weapon immediatly
 	// TODO: yep, a repeated procedure isn't elegant. The tricky part is 'g_select_empty',
 	// as above check happens before firing an empty weapon, while this one after firing
-	if (b->fire_ammo != 0 &&
-	    player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] < (int)(b->fire_ammo))
+	if (b->fire_ammo != 0 && player->client->pers.magazines[sBehaviourIndex(b)] < (int)(b->fire_ammo)) // Change stage!
 	{
 	no_ammo:
-		sPlayNoAmmoSound(player);
-
-		if (g_select_empty->value == 0)
-		{
-			if (player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] == 0)
-				gi.cprintf(player, PRINT_HIGH, "No ammo for '%s'\n", b->print_name);
-			else
-				gi.cprintf(player, PRINT_HIGH, "No enough ammo for '%s'\n", b->print_name);
-
-			koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
-		}
-
+		player->client->weapon.stage = KOI_WEAPON_RELOAD;
+		player->client->weapon.reload_progress = 0.0f;
 		return;
 	}
 
 	// Bye!
 	player->client->weapon.fired = 1;
+}
+
+static inline int sMin(int a, int b)
+{
+	return (a < b) ? a : b;
+}
+
+static void sReloadStage(struct edict_s* player)
+{
+	const struct koiWeaponBehaviour* b = player->client->weapon.b;
+
+	// No ammo
+	if (player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] <= 0)
+	{
+		sPlaySoundAndWait(player, "weapons/noammo.wav", 1.0f);
+		player->client->weapon.stage = KOI_WEAPON_IDLE; // Change stage!
+		return;
+	}
+
+	// Reload
+	if (player->client->weapon.reload_progress == 0.0f)
+	{
+		sPlaySoundAndWait(player, "weapons/noammo.wav", 1.0f);
+		sPlaySound(player, b->reload_sound_name);
+	}
+
+	player->client->weapon.reload_progress += b->reload_step;
+
+	if (player->client->weapon.reload_progress >= 1.0f)
+	{
+		const int ammo =
+		    sMin(player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)], (int)(b->magazine_size));
+
+		// Add to magazine, subtract from ammo
+		player->client->pers.magazines[sBehaviourIndex(b)] += ammo;
+		player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] -= ammo;
+
+		// Change stage!
+		player->client->weapon.stage = KOI_WEAPON_IDLE;
+	}
+
+	// gi.cprintf(player, PRINT_HIGH, "koiWeaponReload(): '%f'\n", player->client->weapon.reload_progress);
+
+	/*if (g_select_empty->value == 0)
+	{
+	    if (player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] == 0)
+	        gi.cprintf(player, PRINT_HIGH, "No ammo for '%s'\n", b->print_name);
+	    else
+	        gi.cprintf(player, PRINT_HIGH, "No enough ammo for '%s'\n", b->print_name);
+
+	    koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
+	}*/
 }
 
 static void sCommonStage(struct edict_s* player)
@@ -642,7 +711,7 @@ void koiWeaponThink(struct edict_s* player)
 		return;
 
 	// Do according the stage
-	while (1)
+	for (int i = 0; i < 2; i += 1)
 	{
 		const enum koiWeaponStage prev_stage = player->client->weapon.stage;
 
@@ -651,6 +720,7 @@ void koiWeaponThink(struct edict_s* player)
 		case KOI_WEAPON_TAKE: sTakeStage(player); break;
 		case KOI_WEAPON_IDLE: sIdleStage(player); break;
 		case KOI_WEAPON_FIRE: sFireStage(player); break;
+		case KOI_WEAPON_RELOAD: sReloadStage(player); break;
 		}
 
 		sCommonStage(player);
@@ -666,5 +736,15 @@ void koiWeaponThink(struct edict_s* player)
 	player->client->weapon.general_frame += 1;
 
 	// Developers, developers, developers
-	player->client->ps.stats[31] = (short)(player->client->weapon.recoil * 100.0f);
+	{
+		player->client->ps.stats[28] = (short)(player->client->pers.magazines[sBehaviourIndex(b)]);
+
+		if (b->fire_ammo != 0)
+			player->client->ps.stats[29] =
+			    (short)(player->client->pers.inventory[ITEM_INDEX(FindItemByClassname(b->ammo_classname))]);
+		else
+			player->client->ps.stats[29] = (short)(0);
+
+		player->client->ps.stats[31] = (short)(player->client->weapon.recoil * 100.0f);
+	}
 }

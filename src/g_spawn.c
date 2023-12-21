@@ -148,6 +148,20 @@ void SP_turret_breach(edict_t *self);
 void SP_turret_base(edict_t *self);
 void SP_turret_driver(edict_t *self);
 
+static const char* banned_spawns[] = {
+	"item_health",
+	"item_health_small",
+	"item_health_large",
+	"item_health_mega",
+	"item_adrenaline",
+	"item_power_shield",
+	"item_power_screen",
+	"item_armor_shard",
+	"item_armor_jacket",
+	"item_armor_combat",
+	"item_armor_body",
+	NULL};
+
 static spawn_t spawns[] = {
 	{"item_health", SP_item_health},
 	{"item_health_small", SP_item_health_small},
@@ -291,6 +305,18 @@ ED_CallSpawn(edict_t *ent)
 		gi.dprintf("ED_CallSpawn: NULL classname\n");
 		G_FreeEdict(ent);
 		return;
+	}
+
+	/* check banned spawns */
+	for (const char** str = banned_spawns; *str != NULL; str++)
+	{
+		if (!strcmp(ent->classname, *str))
+		{
+			/* baAlex: is a bad design to spawn the entity in the first
+			   place, yet, original code (below) do that in case of error */
+			G_FreeEdict(ent);
+			return;
+		}
 	}
 
 	/* check item spawn functions */
@@ -715,9 +741,12 @@ static char *single_statusbar =
 	"xr -60 "
 	"yb -30 "
 	"num 3 31 "
-	"xr -60 "
 	"yb -60 "
 	"num 3 30 "
+	"yb -100 "
+	"num 3 29 "
+	"yb -130 "
+	"num 3 28 "
 
 /* health */
 	"yb	-24 "

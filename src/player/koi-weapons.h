@@ -60,6 +60,11 @@ struct koiWeaponBehaviour
 
 	float spread_crouch_scale;
 	float view_recoil_scale;
+
+	// Reload
+	const char* reload_sound_name;
+	float reload_step;
+	uint8_t magazine_size;
 };
 
 enum koiWeaponStage
@@ -68,7 +73,7 @@ enum koiWeaponStage
 	KOI_WEAPON_IDLE,
 	// KOI_WEAPON_WARM_UP,
 	KOI_WEAPON_FIRE,
-	// KOI_WEAPON_RELOAD,
+	KOI_WEAPON_RELOAD,
 	// KOI_WEAPON_COOLDOWN
 };
 
@@ -82,7 +87,10 @@ struct koiWeaponState
 	float recoil;
 	unsigned frame;
 	unsigned general_frame;
-	unsigned wait;
+
+	unsigned fire_wait;
+	float reload_progress;
+	float sound_wait;
 };
 
 #include "../header/local.h"

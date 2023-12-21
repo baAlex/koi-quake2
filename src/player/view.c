@@ -1044,7 +1044,7 @@ ClientEndServerFrame(edict_t *ent)
 			ent->client->ps.gunangles[YAW] += waveform[GUN_BOB_YAW_WAVE[0]] * GUN_BOB_YAW[0];
 			ent->client->ps.gunangles[ROLL] += waveform[GUN_BOB_ROLL_WAVE[0]] * GUN_BOB_ROLL[0];
 		}
-		if (xyspeed > WALKCYCLE_WALK_SPEED)
+		else if (xyspeed > WALKCYCLE_WALK_SPEED)
 		{
 			ent->client->ps.gunangles[PITCH] += waveform[GUN_BOB_PITCH_WAVE[1]] * GUN_BOB_PITCH[1];
 			ent->client->ps.gunangles[YAW] += waveform[GUN_BOB_YAW_WAVE[1]] * GUN_BOB_YAW[1];
