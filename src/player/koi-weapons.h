@@ -22,6 +22,7 @@
 #ifndef KOI_WEAPONS_H
 #define KOI_WEAPONS_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 
@@ -79,11 +80,13 @@ enum koiWeaponStage
 
 struct koiWeaponState
 {
-	struct gitem_s* ammo_item; // May be NULL
+	// NO POINTERS!
+
+	size_t current_behaviour_index;
+	size_t current_ammo_item_index;
 
 	enum koiWeaponStage stage;
-	int fired;
-	const struct koiWeaponBehaviour* b;
+	unsigned fired;
 	float recoil;
 	unsigned frame;
 	unsigned general_frame;

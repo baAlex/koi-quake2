@@ -263,6 +263,11 @@ static size_t sBehaviourIndex(const struct koiWeaponBehaviour* b)
 	return ((size_t)(b) - (size_t)(BEHAVIOURS)) / sizeof(struct koiWeaponBehaviour);
 }
 
+static const struct koiWeaponBehaviour* sBehaviourFromIndex(size_t i)
+{
+	return BEHAVIOURS + i;
+}
+
 void PlayerNoise(struct edict_s* who, vec3_t where, int type) {}
 
 
@@ -335,7 +340,7 @@ return_failure:
 
 void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 {
-	const struct koiWeaponBehaviour* prev_b = player->client->weapon.b;
+	const struct koiWeaponBehaviour* prev_b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
 	const struct koiWeaponBehaviour* b = sFindBehaviour(weapon_item->classname);
 
 	if (b == NULL)
@@ -364,8 +369,13 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 	{
 		player->client->weapon.stage = KOI_WEAPON_TAKE;
 		player->client->weapon.fired = 0;
-		player->client->weapon.ammo_item = FindItemByClassname(b->ammo_classname);
-		player->client->weapon.b = b;
+
+		if (b->ammo_classname != NULL)
+			player->client->weapon.current_ammo_item_index = ITEM_INDEX(FindItemByClassname(b->ammo_classname));
+		else
+			player->client->weapon.current_ammo_item_index = 0;
+
+		player->client->weapon.current_behaviour_index = sBehaviourIndex(b);
 		// player->client->weapon.recoil = 1.0f; // Penalize change weapons
 		player->client->weapon.recoil = 0.0f; // TODO: every weapon should have its own recoil value
 		player->client->weapon.frame = 0;
@@ -547,7 +557,7 @@ static void sHitscan(const struct edict_s* player, const struct koiWeaponBehavio
 
 static void sTakeStage(struct edict_s* player)
 {
-	const struct koiWeaponBehaviour* b = player->client->weapon.b;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
 
 	// We need to trick client's model interpolation
 	if (player->client->weapon.frame < KOI_TAKE_FRAMES_NO)
@@ -572,7 +582,7 @@ static void sIdleStage(struct edict_s* player)
 
 static void sFireStage(struct edict_s* player)
 {
-	const struct koiWeaponBehaviour* b = player->client->weapon.b;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
 
 	player->client->weapon.fired = 0; // Assume it in case of an early return
 
@@ -591,12 +601,13 @@ static void sFireStage(struct edict_s* player)
 	if (b->fire_ammo != 0)
 	{
 		// No ammo
-		if (player->client->pers.magazines[sBehaviourIndex(b)] < (int)(b->fire_ammo)) // Change stage!
+		if (player->client->pers.magazines[player->client->weapon.current_behaviour_index] <
+		    (int)(b->fire_ammo)) // Change stage!
 			goto no_ammo;
 
 		// Subtract ammo
 		if (((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
-			player->client->pers.magazines[sBehaviourIndex(b)] -= (int)(b->fire_ammo);
+			player->client->pers.magazines[player->client->weapon.current_behaviour_index] -= (int)(b->fire_ammo);
 	}
 
 	// Fire,
@@ -626,7 +637,8 @@ static void sFireStage(struct edict_s* player)
 	// No ammo?, change weapon immediatly
 	// TODO: yep, a repeated procedure isn't elegant. The tricky part is 'g_select_empty',
 	// as above check happens before firing an empty weapon, while this one after firing
-	if (b->fire_ammo != 0 && player->client->pers.magazines[sBehaviourIndex(b)] < (int)(b->fire_ammo)) // Change stage!
+	if (b->fire_ammo != 0 && player->client->pers.magazines[player->client->weapon.current_behaviour_index] <
+	                             (int)(b->fire_ammo)) // Change stage!
 	{
 	no_ammo:
 		player->client->weapon.stage = KOI_WEAPON_RELOAD;
@@ -645,10 +657,10 @@ static inline int sMin(int a, int b)
 
 static void sReloadStage(struct edict_s* player)
 {
-	const struct koiWeaponBehaviour* b = player->client->weapon.b;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
 
 	// No ammo
-	if (player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] <= 0)
+	if (player->client->pers.inventory[player->client->weapon.current_ammo_item_index] <= 0)
 	{
 		sPlaySoundAndWait(player, "weapons/noammo.wav", 1.0f);
 		player->client->weapon.stage = KOI_WEAPON_IDLE; // Change stage!
@@ -666,12 +678,12 @@ static void sReloadStage(struct edict_s* player)
 
 	if (player->client->weapon.reload_progress >= 1.0f)
 	{
-		const int ammo =
-		    sMin(player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)], (int)(b->magazine_size));
+		const int ammo = sMin(player->client->pers.inventory[player->client->weapon.current_ammo_item_index],
+		                      (int)(b->magazine_size));
 
 		// Add to magazine, subtract from ammo
-		player->client->pers.magazines[sBehaviourIndex(b)] += ammo;
-		player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] -= ammo;
+		player->client->pers.magazines[player->client->weapon.current_behaviour_index] += ammo;
+		player->client->pers.inventory[player->client->weapon.current_ammo_item_index] -= ammo;
 
 		// Change stage!
 		player->client->weapon.stage = KOI_WEAPON_IDLE;
@@ -681,7 +693,7 @@ static void sReloadStage(struct edict_s* player)
 
 	/*if (g_select_empty->value == 0)
 	{
-	    if (player->client->pers.inventory[ITEM_INDEX(player->client->weapon.ammo_item)] == 0)
+	    if (player->client->pers.inventory[player->client->weapon.current_ammo_item_index] == 0)
 	        gi.cprintf(player, PRINT_HIGH, "No ammo for '%s'\n", b->print_name);
 	    else
 	        gi.cprintf(player, PRINT_HIGH, "No enough ammo for '%s'\n", b->print_name);
@@ -692,10 +704,10 @@ static void sReloadStage(struct edict_s* player)
 
 static void sCommonStage(struct edict_s* player)
 {
-	const struct koiWeaponBehaviour* b = player->client->weapon.b;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
 
 	// Restore recoil
-	if (player->client->weapon.fired == false)
+	if (player->client->weapon.fired == 0)
 	{
 		player->client->weapon.recoil -= b->recoil_restore_step;
 		if (player->client->weapon.recoil < 0.0f)
@@ -706,9 +718,7 @@ static void sCommonStage(struct edict_s* player)
 void koiWeaponThink(struct edict_s* player)
 {
 	// Retrieve behaviour
-	const struct koiWeaponBehaviour* b = player->client->weapon.b;
-	if (b == NULL) // Outside code didn't call Pickup() and Use()
-		return;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
 
 	// Do according the stage
 	for (int i = 0; i < 2; i += 1)
@@ -737,7 +747,8 @@ void koiWeaponThink(struct edict_s* player)
 
 	// Developers, developers, developers
 	{
-		player->client->ps.stats[28] = (short)(player->client->pers.magazines[sBehaviourIndex(b)]);
+		player->client->ps.stats[28] =
+		    (short)(player->client->pers.magazines[player->client->weapon.current_behaviour_index]);
 
 		if (b->fire_ammo != 0)
 			player->client->ps.stats[29] =
