@@ -743,10 +743,13 @@ static char *single_statusbar =
 	"num 3 31 "
 	"yb -60 "
 	"num 3 30 "
-	"yb -100 "
+	"yb -90 "
 	"num 3 29 "
-	"yb -130 "
+
+	"yb -150 "
 	"num 3 28 "
+	"yb -180 "
+	"num 3 27 "
 
 /* health */
 	"yb	-24 "

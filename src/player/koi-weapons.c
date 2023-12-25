@@ -64,8 +64,9 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .idle_frame = 9,
         .take_frames = {0, 1, 2, 3},
 
+        .cook_time = 0,
         //.fire_delay = 5 - 1, // "Two shots per second" [*1]
-        .fire_delay = 3 - 1, // "Two shots per second" [*1]
+        .fire_delay = 4 - 1, // "Two shots per second" [*1]
         .muzzle_flash = MZ_BLASTER,
 
         .damage = 10, // "10 in single play, 15 in deathmatch" [*1]
@@ -90,6 +91,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .idle_frame = 21,
         .take_frames = {0, 1, 6, 7},
 
+        .cook_time = 0,
         //.fire_delay = 10 - 1, // "One discharge (1 shell) per second" [*1]
         .fire_delay = 9 - 1, // A bit faster
         .muzzle_flash = MZ_SHOTGUN,
@@ -121,6 +123,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .idle_frame = 6,
         .take_frames = {0, 1, 2, 3},
 
+        .cook_time = 0,
         .fire_delay = 0, // "10 bullets per second" [*1]
         .muzzle_flash = MZ_MACHINEGUN,
 
@@ -138,7 +141,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .reload_sound_name = "weapons/machgre.wav",
         .reload_step = 1.0f / (32.0f),
     },
-    {
+    /*{
         .print_name = "Rocket Launcher",
         .classname = "weapon_rocketlauncher",
 
@@ -155,19 +158,20 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .damage = 8,
         .projectiles_no = 1,
         .impact_effect = TE_GUNSHOT,
-    },
+    },*/
     {
         .print_name = "Hyperblaster",
         .classname = "weapon_hyperblaster",
 
         .ammo_classname = "ammo_cells",
         .pickup_drop_ammo = 50, // "50 Per Battery" [*1]
-        .fire_ammo = 3,
+        .fire_ammo = 1,
 
         .model_name = "models/weapons/v_hyperb/tris.md2",
         .idle_frame = 21,
         .take_frames = {1, 2, 4, 5},
 
+        .cook_time = 0,
         .fire_delay = 0, // "10 discharges (cells) per second" [*1]
         .muzzle_flash = MZ_HYPERBLASTER,
 
@@ -185,7 +189,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .reload_sound_name = "weapons/hyprbre.wav",
         .reload_step = 1.0f / (36.0f),
     },
-    {
+    /*{
         .print_name = "Railgun",
         .classname = "weapon_railgun",
 
@@ -220,7 +224,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .damage = 8,
         .projectiles_no = 1,
         .impact_effect = TE_GUNSHOT,
-    },
+    },*/
     {
         .print_name = "Hand Grenade",
         .classname = "ammo_grenades",
@@ -231,12 +235,14 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
 
         .model_name = "models/weapons/v_handgr/tris.md2",
         .idle_frame = 33,
+        .take_frames = {33, 33, 33, 33},
 
+        .cook_time = 50,
         //.fire_delay = 20 - 1, // "About one every two seconds" [*1]
-        .fire_delay = 15 - 1,
+        .fire_delay = 10 - 1,
         .muzzle_flash = MZ_ROCKET,
 
-        .damage = 4,
+        .damage = 50,
         .projectiles_no = 1,
         .impact_effect = TE_SHOTGUN,
         .projectiles_spray = 0.0f,
@@ -400,7 +406,9 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 		state->recoil = 0.0f; // TODO: every weapon should have its own recoil value
 		state->frame = 0;
 		state->fire_wait = 0;
+		state->cook = 0;
 
+		player->client->ps.stats[27] = 0;
 		player->client->ps.stats[28] = 0;
 		player->client->ps.stats[29] = 0;
 		player->client->ps.stats[30] = 0;
@@ -596,13 +604,39 @@ static void sTakeStage(struct edict_s* player)
 	}
 }
 
+static void sRestoreRecoil(struct koiWeaponState* state, const struct koiWeaponBehaviour* b)
+{
+	// This function is kind of invasive, present on all weapons stages
+	// as any free time should be used to restore the recoil
+
+	state->recoil -= b->recoil_restore_step;
+	if (state->recoil < 0.0f)
+		state->recoil = 0.0f;
+}
+
 static void sIdleStage(struct edict_s* player)
 {
 	struct koiWeaponState* state = &player->client->weapon;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
+
+	// Restore recoil,
+	// if we didn't fire in this frame
+	if (state->fired == 0)
+		sRestoreRecoil(state, b);
+	state->fired = 0; // We are in Idle(), clearly we didn't fire
+
+	// Should we reload?
+	if (b->fire_ammo != 0 && player->client->pers.magazines[state->behaviour_index] < (int)(b->fire_ammo))
+	{
+		state->stage = KOI_WEAPON_RELOAD; // Change stage!
+		state->reload_progress = 0.0f;
+	}
 
 	// Should we fire?
-	if ((player->client->buttons & BUTTON_ATTACK) == true)
+	else if ((player->client->buttons & BUTTON_ATTACK) == true)
+	{
 		state->stage = KOI_WEAPON_FIRE; // Change stage!
+	}
 }
 
 static void sFireStage(struct edict_s* player)
@@ -610,40 +644,70 @@ static void sFireStage(struct edict_s* player)
 	struct koiWeaponState* state = &player->client->weapon;
 	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
-	state->fired = 0; // Assume it in case of an early return
+	// Reach this stage without ammo is a sin
+	assert(player->client->pers.magazines[state->behaviour_index] >= (int)(b->fire_ammo));
 
-	// Should we be firing?
-	if ((player->client->buttons & BUTTON_ATTACK) == false)
+	// Conditions to meet before fire, depending on
+	// on a lot of factors and order of execution
 	{
-		state->stage = KOI_WEAPON_IDLE; // Change stage!
-		return;
-	}
+		// Wait a bit between shots
+		if (state->fire_wait >= state->general_frame)
+		{
+			sRestoreRecoil(state, b);
+			return;
+		}
 
-	// Can we fire?
-	if (state->fire_wait >= state->general_frame)
-		return;
+		if (b->cook_time == 0)
+		{
+			// Should we fire?
+			if ((player->client->buttons & BUTTON_ATTACK) == false)
+			{
+				sRestoreRecoil(state, b);
+				return;
+			}
+		}
+		else
+		{
+			// Should we fire?, except that this time we ensure
+			// that the mouse was released on the wait after firing
+			if (state->cook == 0 && (player->client->buttons & BUTTON_ATTACK) == false)
+			{
+				sRestoreRecoil(state, b);
+				return;
+			}
 
-	// Ammo managment
-	if (b->fire_ammo != 0)
-	{
-		// No ammo
-		if (player->client->pers.magazines[state->behaviour_index] < (int)(b->fire_ammo))
-			goto no_ammo;
+			// Cook
+			state->cook += 1;
 
-		// Subtract ammo
-		if (((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
-			player->client->pers.magazines[state->behaviour_index] -= (int)(b->fire_ammo);
+			// Don't procced with firing until player releases the
+			// mouse or we burn our food
+			if (state->cook <= b->cook_time && (player->client->buttons & BUTTON_ATTACK) == true)
+			{
+				sRestoreRecoil(state, b);
+				return;
+			}
+
+			// Next state after firing
+			state->cook = 0;
+			state->stage = KOI_WEAPON_IDLE; // An assumption
+		}
 	}
 
 	// Fire,
 	// before recoil so first shot always goes to centre
-	state->fire_wait = state->general_frame + (unsigned)(b->fire_delay);
-	sHitscan(player, b);
+	{
+		sHitscan(player, b);
+
+		state->fired = 1;
+		state->fire_wait = state->general_frame + (unsigned)(b->fire_delay);
+	}
 
 	// Developers, developers, developers
-	{
-		player->client->ps.stats[30] = (short)(state->recoil * 100.0f);
-	}
+	player->client->ps.stats[30] = (short)(state->recoil * 100.0f);
+
+	// Subtract ammo
+	if (((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
+		player->client->pers.magazines[state->behaviour_index] -= (int)(b->fire_ammo);
 
 	// Apply recoil
 	state->recoil += b->recoil_step;
@@ -659,18 +723,12 @@ static void sFireStage(struct edict_s* player)
 		gi.multicast(player->s.origin, MULTICAST_PVS);
 	}
 
-	// No ammo?, change weapon immediatly
-	// TODO: yep, a repeated procedure isn't elegant
+	// We have ammo?
 	if (b->fire_ammo != 0 && player->client->pers.magazines[state->behaviour_index] < (int)(b->fire_ammo))
 	{
-	no_ammo:
 		state->stage = KOI_WEAPON_RELOAD; // Change stage!
 		state->reload_progress = 0.0f;
-		return;
 	}
-
-	// Bye!
-	state->fired = 1;
 }
 
 static int sMin(int a, int b)
@@ -690,6 +748,12 @@ static void sReloadStage(struct edict_s* player)
 
 	const int final_ammo = player->client->pers.inventory[state->ammo_item_index] +
 	                       player->client->pers.magazines[state->behaviour_index]; // What we can have after the reload
+
+	// Restore recoil,
+	// if we didn't fire in this frame
+	if (state->fired == 0)
+		sRestoreRecoil(state, b);
+	state->fired = 0; // We are in Reload(), clearly we didn't fire
 
 	// No ammo
 	if (final_ammo < (int)(b->fire_ammo))
@@ -713,9 +777,7 @@ static void sReloadStage(struct edict_s* player)
 			return;
 		}
 
-		// If nothing above, return to idle stage
-		sPlaySoundAndWait(player, "weapons/noammo.wav", 1.0f);
-		state->stage = KOI_WEAPON_IDLE; // Change stage!
+		// If nothing above, just returns
 		return;
 	}
 
@@ -742,20 +804,6 @@ static void sReloadStage(struct edict_s* player)
 	}
 }
 
-static void sCommonStage(struct edict_s* player)
-{
-	struct koiWeaponState* state = &player->client->weapon;
-	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
-
-	// Restore recoil
-	if (state->fired == 0)
-	{
-		state->recoil -= b->recoil_restore_step;
-		if (state->recoil < 0.0f)
-			state->recoil = 0.0f;
-	}
-}
-
 void koiWeaponThink(struct edict_s* player)
 {
 	struct koiWeaponState* state = &player->client->weapon;
@@ -764,7 +812,7 @@ void koiWeaponThink(struct edict_s* player)
 	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
 	// Do according the stage
-	for (int i = 0; i < 2; i += 1)
+	while (1)
 	{
 		const enum koiWeaponStage prev_stage = state->stage;
 
@@ -775,8 +823,6 @@ void koiWeaponThink(struct edict_s* player)
 		case KOI_WEAPON_FIRE: sFireStage(player); break;
 		case KOI_WEAPON_RELOAD: sReloadStage(player); break;
 		}
-
-		sCommonStage(player);
 
 		// If the stage changed, we execute it right now
 		// (it's a game running at 10 fps)
@@ -790,14 +836,15 @@ void koiWeaponThink(struct edict_s* player)
 
 	// Developers, developers, developers
 	{
-		player->client->ps.stats[28] = (short)(player->client->pers.magazines[state->behaviour_index]);
+		player->client->ps.stats[27] = (short)(player->client->pers.magazines[state->behaviour_index]);
 
 		if (b->fire_ammo != 0)
-			player->client->ps.stats[29] =
+			player->client->ps.stats[28] =
 			    (short)(player->client->pers.inventory[ITEM_INDEX(FindItemByClassname(b->ammo_classname))]);
 		else
-			player->client->ps.stats[29] = (short)(0);
+			player->client->ps.stats[28] = (short)(0);
 
+		player->client->ps.stats[29] = (short)(state->cook);
 		player->client->ps.stats[31] = (short)(state->recoil * 100.0f);
 	}
 }

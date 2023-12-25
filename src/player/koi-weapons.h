@@ -27,7 +27,7 @@
 
 
 #define KOI_TAKE_FRAMES_NO 4 // For all weapons
-#define KOI_WEAPONS_NO 8
+#define KOI_WEAPONS_NO 5
 
 struct koiWeaponBehaviour
 {
@@ -45,6 +45,7 @@ struct koiWeaponBehaviour
 	uint8_t take_frames[KOI_TAKE_FRAMES_NO];
 
 	// Behaviour
+	uint8_t cook_time;
 	uint8_t fire_delay;
 	uint8_t muzzle_flash;
 
@@ -92,6 +93,7 @@ struct koiWeaponState
 	unsigned general_frame;
 
 	unsigned fire_wait;
+	unsigned cook;
 	float reload_progress;
 	float sound_wait;
 };

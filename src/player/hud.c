@@ -436,17 +436,17 @@ G_SetStats(edict_t *ent)
 	}
 
 	/* ammo */
-	if (!ent->client->weapon.current_ammo_item_index)
+	if (!ent->client->weapon.ammo_item_index)
 	{
 		ent->client->ps.stats[STAT_AMMO_ICON] = 0;
 		ent->client->ps.stats[STAT_AMMO] = 0;
 	}
 	else
 	{
-		item = &itemlist[ent->client->weapon.current_ammo_item_index];
+		item = &itemlist[ent->client->weapon.ammo_item_index];
 		ent->client->ps.stats[STAT_AMMO_ICON] = gi.imageindex(item->icon);
 		ent->client->ps.stats[STAT_AMMO] =
-			ent->client->pers.inventory[ent->client->weapon.current_ammo_item_index];
+			ent->client->pers.inventory[ent->client->weapon.ammo_item_index];
 	}
 
 	/* armor */
