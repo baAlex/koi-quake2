@@ -63,9 +63,9 @@ struct koiWeaponBehaviour
 	float view_recoil_scale;
 
 	// Reload
-	const char* reload_sound_name;
-	float reload_step;
 	uint8_t magazine_size;
+	const char* reload_sound_name;
+	float reload_step; // 0, 1
 };
 
 enum koiWeaponStage
@@ -82,8 +82,8 @@ struct koiWeaponState
 {
 	// NO POINTERS!
 
-	size_t current_behaviour_index;
-	size_t current_ammo_item_index;
+	size_t behaviour_index;
+	size_t ammo_item_index;
 
 	enum koiWeaponStage stage;
 	unsigned fired;

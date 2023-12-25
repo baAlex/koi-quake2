@@ -105,9 +105,9 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .spread_crouch_scale = 0.2f,
         .view_recoil_scale = 5.0f,
 
-        .reload_sound_name = "weapons/Shotgre.wav",
-        .reload_step = 1.0f / (44.0f),
         .magazine_size = 10,
+        .reload_sound_name = "weapons/shotgre.wav",
+        .reload_step = 1.0f / (44.0f),
     },
     {
         .print_name = "Machine Gun",
@@ -134,9 +134,9 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .spread_crouch_scale = 0.4f,
         .view_recoil_scale = 7.0f,
 
+        .magazine_size = 50,
         .reload_sound_name = "weapons/machgre.wav",
         .reload_step = 1.0f / (32.0f),
-        .magazine_size = 50,
     },
     {
         .print_name = "Rocket Launcher",
@@ -162,7 +162,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
 
         .ammo_classname = "ammo_cells",
         .pickup_drop_ammo = 50, // "50 Per Battery" [*1]
-        .fire_ammo = 1,
+        .fire_ammo = 3,
 
         .model_name = "models/weapons/v_hyperb/tris.md2",
         .idle_frame = 21,
@@ -181,9 +181,9 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .spread_crouch_scale = 0.4f,
         .view_recoil_scale = 2.5f,
 
+        .magazine_size = 50,
         .reload_sound_name = "weapons/hyprbre.wav",
         .reload_step = 1.0f / (36.0f),
-        .magazine_size = 50,
     },
     {
         .print_name = "Railgun",
@@ -232,14 +232,28 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .model_name = "models/weapons/v_handgr/tris.md2",
         .idle_frame = 33,
 
-        .fire_delay = 20 - 1, // "About one every two seconds" [*1]
-        .muzzle_flash = NO_MUZZLE_FLASH,
+        //.fire_delay = 20 - 1, // "About one every two seconds" [*1]
+        .fire_delay = 15 - 1,
+        .muzzle_flash = MZ_ROCKET,
 
-        .damage = 8,
+        .damage = 4,
         .projectiles_no = 1,
-        .impact_effect = TE_GUNSHOT,
+        .impact_effect = TE_SHOTGUN,
+        .projectiles_spray = 0.0f,
+
+        .recoil_step = 0.0f,
+        .recoil_restore_step = 0.0f,
+        .spread = 0.0f,
+        .spread_crouch_scale = 0.0f,
+        .view_recoil_scale = 0.0f,
+
+        .magazine_size = 0,
+        .reload_sound_name = NULL,
     },
 };
+
+
+// ============================================
 
 
 static const struct koiWeaponBehaviour* sFindBehaviour(const char* classname)
@@ -268,24 +282,27 @@ static const struct koiWeaponBehaviour* sBehaviourFromIndex(size_t i)
 	return BEHAVIOURS + i;
 }
 
-void PlayerNoise(struct edict_s* who, vec3_t where, int type) {}
-
-
-// ============================================
-
-
 static void sPlaySoundAndWait(struct edict_s* player, const char* filename, float wait)
 {
-	if (player->client->weapon.sound_wait > level.time)
+	struct koiWeaponState* state = &player->client->weapon;
+
+	if (state->sound_wait > level.time)
 		return;
 
-	gi.sound(player, CHAN_AUTO, gi.soundindex(filename), 1, ATTN_NORM, 0);
-	player->client->weapon.sound_wait = level.time + wait;
+	if (filename != NULL)
+		gi.sound(player, 8, gi.soundindex(filename), 1, ATTN_NORM, 0);
+
+	state->sound_wait = level.time + wait;
 }
+
 static void sPlaySound(struct edict_s* player, const char* filename)
 {
-	gi.sound(player, 7, gi.soundindex(filename), 1, ATTN_NORM, 0);
+	if (filename != NULL)
+		gi.sound(player, 7, gi.soundindex(filename), 1, ATTN_NORM, 0);
 }
+
+
+void PlayerNoise(struct edict_s* who, vec3_t where, int type) {}
 
 
 qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player_ent)
@@ -293,6 +310,7 @@ qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player
 	// Use item classname to find an appropiate behaviour,
 	// this checks if is an item of a weapon under our control
 	const struct koiWeaponBehaviour* b = sFindBehaviour(weapon_item_ent->item->classname);
+
 	if (b == NULL)
 	{
 		gi.cprintf(player_ent, PRINT_HIGH, "koiWeaponPickup(): item '%s' is not a weapon!\n",
@@ -338,9 +356,11 @@ return_failure:
 	return false; // Weapon not taken
 }
 
+
 void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 {
-	const struct koiWeaponBehaviour* prev_b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
+	struct koiWeaponState* state = &player->client->weapon;
+	const struct koiWeaponBehaviour* prev_b = sBehaviourFromIndex(state->behaviour_index);
 	const struct koiWeaponBehaviour* b = sFindBehaviour(weapon_item->classname);
 
 	if (b == NULL)
@@ -367,19 +387,19 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 
 	// Set state
 	{
-		player->client->weapon.stage = KOI_WEAPON_TAKE;
-		player->client->weapon.fired = 0;
+		state->stage = KOI_WEAPON_TAKE;
+		state->fired = 0;
 
 		if (b->ammo_classname != NULL)
-			player->client->weapon.current_ammo_item_index = ITEM_INDEX(FindItemByClassname(b->ammo_classname));
+			state->ammo_item_index = ITEM_INDEX(FindItemByClassname(b->ammo_classname));
 		else
-			player->client->weapon.current_ammo_item_index = 0;
+			state->ammo_item_index = 0;
 
-		player->client->weapon.current_behaviour_index = sBehaviourIndex(b);
-		// player->client->weapon.recoil = 1.0f; // Penalize change weapons
-		player->client->weapon.recoil = 0.0f; // TODO: every weapon should have its own recoil value
-		player->client->weapon.frame = 0;
-		player->client->weapon.fire_wait = 0;
+		state->behaviour_index = sBehaviourIndex(b);
+		// state->recoil = 1.0f; // Penalize change weapons
+		state->recoil = 0.0f; // TODO: every weapon should have its own recoil value
+		state->frame = 0;
+		state->fire_wait = 0;
 
 		player->client->ps.stats[28] = 0;
 		player->client->ps.stats[29] = 0;
@@ -389,6 +409,7 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 		sPlaySound(player, "weapons/change.wav");
 	}
 }
+
 
 void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 {
@@ -461,13 +482,14 @@ void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 	}
 }
 
+
 void koiWeaponDev(const struct edict_s* player) {}
 
 
 // ============================================
 
 
-static inline float sEasing(float x, float e)
+static float sEasing(float x, float e)
 {
 	const float epsilon = 1.0F / 1024.0F;
 	return x = (x) / (x + e * (1.0F - x) + epsilon);
@@ -490,6 +512,7 @@ static int sTraceRay(const struct edict_s* player, const struct koiWeaponBehavio
 
 static void sHitscan(const struct edict_s* player, const struct koiWeaponBehaviour* b)
 {
+	struct koiWeaponState* state = &player->client->weapon;
 	int knockback = 10;
 	int means_of_death = MOD_UNKNOWN;
 
@@ -505,12 +528,10 @@ static void sHitscan(const struct edict_s* player, const struct koiWeaponBehavio
 	vec3_t direction;
 	vec3_t direction_forward;
 	{
-		const float recoil = player->client->weapon.recoil;
-
-		const float q = frandk() * M_PI * 2.0f;                 // Polar to avoid a square spread
-		const float r = powf(frandk(), 2.0f) * spread * recoil; // Bias towards centre
-		const float random_x = cos(q) * r;
-		const float random_y = sin(q) * r;
+		const float q = frandk() * M_PI * 2.0f;                        // Polar to avoid a square spread
+		const float r = powf(frandk(), 2.0f) * spread * state->recoil; // Bias towards centre
+		const float random_x = cosf(q) * r;
+		const float random_y = sinf(q) * r;
 
 		// Maths
 		VectorSet(direction,                             //
@@ -557,73 +578,77 @@ static void sHitscan(const struct edict_s* player, const struct koiWeaponBehavio
 
 static void sTakeStage(struct edict_s* player)
 {
-	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
+	struct koiWeaponState* state = &player->client->weapon;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
 	// We need to trick client's model interpolation
-	if (player->client->weapon.frame < KOI_TAKE_FRAMES_NO)
-		player->client->ps.gunframe = (int)(b->take_frames[player->client->weapon.frame]);
-	if (player->client->weapon.frame == 1)
+	if (state->frame < KOI_TAKE_FRAMES_NO)
+		player->client->ps.gunframe = (int)(b->take_frames[state->frame]);
+
+	if (state->frame == 1)
 		player->client->ps.gunindex = gi.modelindex(b->model_name);
 
 	// Animation ends
-	if (player->client->weapon.frame == KOI_TAKE_FRAMES_NO) // Change stage!
+	if (state->frame == KOI_TAKE_FRAMES_NO)
 	{
 		player->client->ps.gunframe = (int)(b->idle_frame);
-		player->client->weapon.stage = KOI_WEAPON_IDLE;
+		state->stage = KOI_WEAPON_IDLE; // Change stage!
 	}
 }
 
 static void sIdleStage(struct edict_s* player)
 {
+	struct koiWeaponState* state = &player->client->weapon;
+
 	// Should we fire?
-	if ((player->client->buttons & BUTTON_ATTACK) == true) // Change stage!
-		player->client->weapon.stage = KOI_WEAPON_FIRE;
+	if ((player->client->buttons & BUTTON_ATTACK) == true)
+		state->stage = KOI_WEAPON_FIRE; // Change stage!
 }
 
 static void sFireStage(struct edict_s* player)
 {
-	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
+	struct koiWeaponState* state = &player->client->weapon;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
-	player->client->weapon.fired = 0; // Assume it in case of an early return
+	state->fired = 0; // Assume it in case of an early return
 
 	// Should we be firing?
-	if ((player->client->buttons & BUTTON_ATTACK) == false) // Change stage!
+	if ((player->client->buttons & BUTTON_ATTACK) == false)
 	{
-		player->client->weapon.stage = KOI_WEAPON_IDLE;
+		state->stage = KOI_WEAPON_IDLE; // Change stage!
 		return;
 	}
 
 	// Can we fire?
-	if (player->client->weapon.fire_wait >= player->client->weapon.general_frame)
+	if (state->fire_wait >= state->general_frame)
 		return;
 
 	// Ammo managment
 	if (b->fire_ammo != 0)
 	{
 		// No ammo
-		if (player->client->pers.magazines[player->client->weapon.current_behaviour_index] <
-		    (int)(b->fire_ammo)) // Change stage!
+		if (player->client->pers.magazines[state->behaviour_index] < (int)(b->fire_ammo))
 			goto no_ammo;
 
 		// Subtract ammo
 		if (((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
-			player->client->pers.magazines[player->client->weapon.current_behaviour_index] -= (int)(b->fire_ammo);
+			player->client->pers.magazines[state->behaviour_index] -= (int)(b->fire_ammo);
 	}
 
 	// Fire,
 	// before recoil so first shot always goes to centre
-	player->client->weapon.fire_wait = player->client->weapon.general_frame + (unsigned)(b->fire_delay);
+	state->fire_wait = state->general_frame + (unsigned)(b->fire_delay);
 	sHitscan(player, b);
 
 	// Developers, developers, developers
 	{
-		player->client->ps.stats[30] = (short)(player->client->weapon.recoil * 100.0f);
+		player->client->ps.stats[30] = (short)(state->recoil * 100.0f);
 	}
 
 	// Apply recoil
-	player->client->weapon.recoil += b->recoil_step;
-	if (player->client->weapon.recoil > 1.0f)
-		player->client->weapon.recoil = 1.0f;
+	state->recoil += b->recoil_step;
+	if (state->recoil > 1.0f)
+		state->recoil = 1.0f;
 
 	// Client effect
 	if (b->muzzle_flash != NO_MUZZLE_FLASH)
@@ -635,97 +660,115 @@ static void sFireStage(struct edict_s* player)
 	}
 
 	// No ammo?, change weapon immediatly
-	// TODO: yep, a repeated procedure isn't elegant. The tricky part is 'g_select_empty',
-	// as above check happens before firing an empty weapon, while this one after firing
-	if (b->fire_ammo != 0 && player->client->pers.magazines[player->client->weapon.current_behaviour_index] <
-	                             (int)(b->fire_ammo)) // Change stage!
+	// TODO: yep, a repeated procedure isn't elegant
+	if (b->fire_ammo != 0 && player->client->pers.magazines[state->behaviour_index] < (int)(b->fire_ammo))
 	{
 	no_ammo:
-		player->client->weapon.stage = KOI_WEAPON_RELOAD;
-		player->client->weapon.reload_progress = 0.0f;
+		state->stage = KOI_WEAPON_RELOAD; // Change stage!
+		state->reload_progress = 0.0f;
 		return;
 	}
 
 	// Bye!
-	player->client->weapon.fired = 1;
+	state->fired = 1;
 }
 
-static inline int sMin(int a, int b)
+static int sMin(int a, int b)
 {
 	return (a < b) ? a : b;
 }
 
+static int sMax(int a, int b)
+{
+	return (a > b) ? a : b;
+}
+
 static void sReloadStage(struct edict_s* player)
 {
-	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
+	struct koiWeaponState* state = &player->client->weapon;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
+
+	const int final_ammo = player->client->pers.inventory[state->ammo_item_index] +
+	                       player->client->pers.magazines[state->behaviour_index]; // What we can have after the reload
 
 	// No ammo
-	if (player->client->pers.inventory[player->client->weapon.current_ammo_item_index] <= 0)
+	if (final_ammo < (int)(b->fire_ammo))
 	{
+		// Change weapon if current weapon is its own ammo
+		if (strcmp(b->ammo_classname, b->classname) == 0)
+		{
+			koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
+			return;
+		}
+
+		// Change weapon if player doesn't want to iterate over empty weapons
+		else if (g_select_empty->value == 0)
+		{
+			if ((int)(b->fire_ammo) == 1)
+				gi.cprintf(player, PRINT_HIGH, "No ammo for '%s'\n", b->print_name);
+			else
+				gi.cprintf(player, PRINT_HIGH, "No enough ammo for '%s'\n", b->print_name);
+
+			koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
+			return;
+		}
+
+		// If nothing above, return to idle stage
 		sPlaySoundAndWait(player, "weapons/noammo.wav", 1.0f);
-		player->client->weapon.stage = KOI_WEAPON_IDLE; // Change stage!
+		state->stage = KOI_WEAPON_IDLE; // Change stage!
 		return;
 	}
 
 	// Reload
-	if (player->client->weapon.reload_progress == 0.0f)
+	if (state->reload_progress == 0.0f)
 	{
-		sPlaySoundAndWait(player, "weapons/noammo.wav", 1.0f);
+		// sPlaySoundAndWait(player, "weapons/noammo.wav", 1.0f);
 		sPlaySound(player, b->reload_sound_name);
 	}
 
-	player->client->weapon.reload_progress += b->reload_step;
+	state->reload_progress += b->reload_step;
 
-	if (player->client->weapon.reload_progress >= 1.0f)
+	if (state->reload_progress >= 1.0f || b->magazine_size == 0)
 	{
-		const int ammo = sMin(player->client->pers.inventory[player->client->weapon.current_ammo_item_index],
-		                      (int)(b->magazine_size));
+		const int ammo =
+		    sMin(final_ammo, sMax((int)(b->magazine_size), 1)) - player->client->pers.magazines[state->behaviour_index];
 
 		// Add to magazine, subtract from ammo
-		player->client->pers.magazines[player->client->weapon.current_behaviour_index] += ammo;
-		player->client->pers.inventory[player->client->weapon.current_ammo_item_index] -= ammo;
+		player->client->pers.magazines[state->behaviour_index] += ammo;
+		player->client->pers.inventory[state->ammo_item_index] -= ammo;
 
 		// Change stage!
-		player->client->weapon.stage = KOI_WEAPON_IDLE;
+		state->stage = KOI_WEAPON_IDLE;
 	}
-
-	// gi.cprintf(player, PRINT_HIGH, "koiWeaponReload(): '%f'\n", player->client->weapon.reload_progress);
-
-	/*if (g_select_empty->value == 0)
-	{
-	    if (player->client->pers.inventory[player->client->weapon.current_ammo_item_index] == 0)
-	        gi.cprintf(player, PRINT_HIGH, "No ammo for '%s'\n", b->print_name);
-	    else
-	        gi.cprintf(player, PRINT_HIGH, "No enough ammo for '%s'\n", b->print_name);
-
-	    koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
-	}*/
 }
 
 static void sCommonStage(struct edict_s* player)
 {
-	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
+	struct koiWeaponState* state = &player->client->weapon;
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
 	// Restore recoil
-	if (player->client->weapon.fired == 0)
+	if (state->fired == 0)
 	{
-		player->client->weapon.recoil -= b->recoil_restore_step;
-		if (player->client->weapon.recoil < 0.0f)
-			player->client->weapon.recoil = 0.0f;
+		state->recoil -= b->recoil_restore_step;
+		if (state->recoil < 0.0f)
+			state->recoil = 0.0f;
 	}
 }
 
 void koiWeaponThink(struct edict_s* player)
 {
+	struct koiWeaponState* state = &player->client->weapon;
+
 	// Retrieve behaviour
-	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(player->client->weapon.current_behaviour_index);
+	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
 	// Do according the stage
 	for (int i = 0; i < 2; i += 1)
 	{
-		const enum koiWeaponStage prev_stage = player->client->weapon.stage;
+		const enum koiWeaponStage prev_stage = state->stage;
 
-		switch (player->client->weapon.stage)
+		switch (state->stage)
 		{
 		case KOI_WEAPON_TAKE: sTakeStage(player); break;
 		case KOI_WEAPON_IDLE: sIdleStage(player); break;
@@ -737,18 +780,17 @@ void koiWeaponThink(struct edict_s* player)
 
 		// If the stage changed, we execute it right now
 		// (it's a game running at 10 fps)
-		if (player->client->weapon.stage == prev_stage)
+		if (state->stage == prev_stage)
 			break;
 	}
 
 	// Update state
-	player->client->weapon.frame += 1;
-	player->client->weapon.general_frame += 1;
+	state->frame += 1;
+	state->general_frame += 1;
 
 	// Developers, developers, developers
 	{
-		player->client->ps.stats[28] =
-		    (short)(player->client->pers.magazines[player->client->weapon.current_behaviour_index]);
+		player->client->ps.stats[28] = (short)(player->client->pers.magazines[state->behaviour_index]);
 
 		if (b->fire_ammo != 0)
 			player->client->ps.stats[29] =
@@ -756,6 +798,6 @@ void koiWeaponThink(struct edict_s* player)
 		else
 			player->client->ps.stats[29] = (short)(0);
 
-		player->client->ps.stats[31] = (short)(player->client->weapon.recoil * 100.0f);
+		player->client->ps.stats[31] = (short)(state->recoil * 100.0f);
 	}
 }
