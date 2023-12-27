@@ -45,8 +45,10 @@
 //  - [done] dmflags: DF_INFINITE_AMMO
 //  - [    ] coop
 //  - [    ] coop_pickup_weapons
-//  - [    ] deathmatch (changes weapons damage)
 //  - [done] g_select_empty
+
+// Probably not this ones:
+//  - [    ] deathmatch (changes weapons damage)
 //  - [    ] g_swap_speed (seems to be a Yamagi addition)
 
 // And finally, if there is Quad damage and Silencer, powerups
@@ -262,6 +264,22 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
 // ============================================
 
 
+static int sMin(int a, int b)
+{
+	return (a < b) ? a : b;
+}
+
+static int sMax(int a, int b)
+{
+	return (a > b) ? a : b;
+}
+
+static float sEasing(float x, float e)
+{
+	(void)x;
+	(void)e;
+}
+
 static const struct koiWeaponBehaviour* sFindBehaviour(const char* classname)
 {
 	const struct koiWeaponBehaviour* b = NULL;
@@ -308,7 +326,12 @@ static void sPlaySound(struct edict_s* player, const char* filename)
 }
 
 
-void PlayerNoise(struct edict_s* who, vec3_t where, int type) {}
+void PlayerNoise(struct edict_s* who, vec3_t where, int type)
+{
+	(void)who;
+	(void)where;
+	(void)type;
+}
 
 
 qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player_ent)
@@ -337,16 +360,20 @@ qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player
 	{
 		// Weapon is its own ammo, so we increase
 		// how much weapons of this kind we carry
+
 		if ((weapon_item_ent->spawnflags & DROPPED_ITEM) != 0)
 			player_ent->client->pers.inventory[ITEM_INDEX(weapon_item_ent->item)] += weapon_item_ent->count;
 		else
-			player_ent->client->pers.inventory[ITEM_INDEX(weapon_item_ent->item)] += ((int)(b->pickup_drop_ammo) - 1);
+			player_ent->client->pers.inventory[ITEM_INDEX(weapon_item_ent->item)] += (int)(b->pickup_drop_ammo) - 1;
 	}
 	else if (b->ammo_classname != NULL)
 	{
-		int* magazine = player_ent->client->pers.magazines + sBehaviourIndex(b);
+		// Normal weapon, we increase the magazine
+		// and the ammo inventory
+
 		struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
-		int ammo_to_add = b->pickup_drop_ammo;
+		int* magazine = &player_ent->client->pers.magazines[sBehaviourIndex(b)];
+		int ammo_to_add = (int)(b->pickup_drop_ammo);
 
 		if ((weapon_item_ent->spawnflags & DROPPED_ITEM) != 0)
 		{
@@ -360,14 +387,14 @@ qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player
 			*magazine += ammo_to_add;
 
 			// Remainder goes to inventory
-			if (*magazine > b->magazine_size)
+			if (*magazine > (int)(b->magazine_size))
 			{
 				Add_Ammo(player_ent, ammo_item, *magazine - (int)(b->magazine_size));
-				*magazine = b->magazine_size;
+				*magazine = (int)(b->magazine_size);
 			}
 
-			// Since we refill'ed the magazine of the current weapon, magically,
-			// go back to take state to sell the idea that the character took
+			// Since we refilled the magazine of current active weapon, magically,
+			// lets go back to take state to sell the idea that our character took
 			// the new weapon instead
 			if (player_ent->client->weapon.behaviour_index == sBehaviourIndex(b))
 			{
@@ -377,7 +404,7 @@ qboolean koiWeaponPickup(struct edict_s* weapon_item_ent, struct edict_s* player
 		}
 		else
 		{
-			Add_Ammo(player_ent, ammo_item, ammo_to_add);
+			Add_Ammo(player_ent, ammo_item, (int)(ammo_to_add));
 		}
 	}
 
@@ -409,11 +436,12 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 	if (prev_b == b)
 		return;
 
+	// Honor this cvar, don't use an empty weapon
 	if (g_select_empty->value == 0 && b->ammo_classname != NULL)
 	{
 		const struct gitem_s* ammo_item = FindItemByClassname(b->ammo_classname);
-		const int available_ammo =
-		    player->client->pers.inventory[ITEM_INDEX(ammo_item)] + player->client->pers.magazines[sBehaviourIndex(b)];
+		const int available_ammo = player->client->pers.inventory[ITEM_INDEX(ammo_item)] +
+		                           (int)(player->client->pers.magazines[sBehaviourIndex(b)]);
 
 		if (available_ammo < (int)(b->fire_ammo))
 			return;
@@ -471,8 +499,8 @@ void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 	}
 
 	// Mark persistent inventory, for the weapon and ammo
+	size_t ammo_index = 0;
 	int ammo_to_drop = 0;
-	int ammo_index = 0;
 
 	if (strcmp(b->ammo_classname, b->classname) != 0)
 	{
@@ -485,7 +513,7 @@ void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 	}
 	else
 	{
-		// Case where weapon is its own ammo
+		// Case where weapon is its own ammo (notice the '-1's)
 		ammo_index = ITEM_INDEX(weapon_item);
 
 		if (player->client->pers.inventory[ammo_index] > (int)(b->pickup_drop_ammo))
@@ -507,16 +535,19 @@ void koiWeaponDrop(struct edict_s* player, struct gitem_s* weapon_item)
 
 	// Should we change current weapon?
 	if (
-	    // We where using it and now we have zero weapons of this kind left
+	    // a. We where using it and now we have zero weapons of this kind left
 	    (player->client->pers.weapon == weapon_item && player->client->pers.inventory[ITEM_INDEX(weapon_item)] == 0) ||
-	    // We don't have any ammo for it
+
+	    // b. We don't have ammo for it
 	    (ammo_index > 0 && player->client->pers.inventory[ammo_index] == 0))
 	{
 		koiWeaponUse(player, FindItemByClassname("weapon_blaster"));
 	}
 	else
 	{
-		// Sell the idea that characer took a new weapon of the same kind
+		// Sell the idea that character took a new weapon of the same kind,
+		// also some weapons stages have the assumption of ammo being present,
+		// which we modified in procedures above
 		// TODO, repeated code
 		player->client->weapon.frame = 0;
 		player->client->weapon.stage = KOI_WEAPON_TAKE;
@@ -530,16 +561,10 @@ void koiWeaponDev(const struct edict_s* player) {}
 // ============================================
 
 
-static float sEasing(float x, float e)
-{
-	const float epsilon = 1.0F / 1024.0F;
-	return x = (x) / (x + e * (1.0F - x) + epsilon);
-}
-
-static int sTraceRay(const struct edict_s* player, const struct koiWeaponBehaviour* b, vec3_t direction, trace_t* out)
+static int sTraceRay(const struct edict_s* player, vec3_t direction, trace_t* out)
 {
 	vec3_t start;
-	VectorSet(start, player->s.origin[0], player->s.origin[1], player->s.origin[2] + player->viewheight);
+	VectorSet(start, player->s.origin[0], player->s.origin[1], player->s.origin[2] + (float)(player->viewheight));
 
 	vec3_t end;
 	VectorMA(start, 8192, direction, end);
@@ -569,7 +594,7 @@ static void sHitscan(const struct edict_s* player, const struct koiWeaponBehavio
 	vec3_t direction;
 	vec3_t direction_forward;
 	{
-		const float q = frandk() * M_PI * 2.0f;                        // Polar to avoid a square spread
+		const float q = frandk() * 2.0f * (float)(M_PI);               // Polar to avoid a square spread
 		const float r = powf(frandk(), 2.0f) * spread * state->recoil; // Bias towards centre
 		const float random_x = cosf(q) * r;
 		const float random_y = sinf(q) * r;
@@ -588,7 +613,7 @@ static void sHitscan(const struct edict_s* player, const struct koiWeaponBehavio
 
 	for (int i = 0; i < b->projectiles_no; i += 1)
 	{
-		if (sTraceRay(player, b, direction_forward, &tr) != 0)
+		if (sTraceRay(player, direction_forward, &tr) != 0)
 			return;
 
 		// Impact puff
@@ -622,10 +647,10 @@ static void sTakeStage(struct edict_s* player)
 	struct koiWeaponState* state = &player->client->weapon;
 	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
-	// We need to trick client's model interpolation
-	if (state->frame < KOI_TAKE_FRAMES_NO)
-		player->client->ps.gunframe = (int)(b->take_frames[state->frame]);
+	// Animation frames
+	player->client->ps.gunframe = (int)(b->take_frames[state->frame]);
 
+	// We need to trick client's model interpolation
 	if (state->frame == 1)
 		player->client->ps.gunindex = gi.modelindex(b->model_name);
 
@@ -641,6 +666,7 @@ static void sRestoreRecoil(struct koiWeaponState* state, const struct koiWeaponB
 {
 	// This function is kind of invasive, present on all weapons stages
 	// as any free time should be used to restore the recoil
+	// TODO!
 
 	state->recoil -= b->recoil_restore_step;
 	if (state->recoil < 0.0f)
@@ -661,7 +687,7 @@ static void sIdleStage(struct edict_s* player)
 	// Should we reload?
 	if (b->ammo_classname != NULL &&
 	    strcmp(b->classname, b->ammo_classname) != 0 && // Not weapons that are its own ammo
-	    b->fire_ammo != 0 && player->client->pers.magazines[state->behaviour_index] < (int)(b->fire_ammo))
+	    b->fire_ammo != 0 && player->client->pers.magazines[state->behaviour_index] < b->fire_ammo)
 	{
 		state->stage = KOI_WEAPON_RELOAD; // Change stage!
 		state->reload_progress = 0.0f;
@@ -679,10 +705,15 @@ static void sFireStage(struct edict_s* player)
 	struct koiWeaponState* state = &player->client->weapon;
 	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
-	// Reach this stage without any ammo is a sin
-	assert((player->client->pers.magazines[state->behaviour_index] +
-	            player->client->pers.inventory[state->ammo_item_index] >=
-	        (int)(b->fire_ammo)));
+	// From where subtract ammo, depending on the
+	// time of weapon (grenades are its own ammo)
+	int* ammo = &player->client->pers.magazines[state->behaviour_index];
+
+	if (b->ammo_classname != NULL && strcmp(b->classname, b->ammo_classname) == 0)
+		ammo = &player->client->pers.inventory[state->ammo_item_index];
+
+	// Reach this stage without ammo is a sin
+	assert(*ammo >= (int)(b->fire_ammo));
 
 	// Conditions to meet before fire, depending on
 	// on a lot of factors and order of execution
@@ -716,7 +747,7 @@ static void sFireStage(struct edict_s* player)
 			// Cook
 			state->cook += 1;
 
-			// Don't procced with firing until player releases the
+			// Don't proceed with firing until player releases the
 			// mouse or we burn our food
 			if (state->cook <= b->cook_time && (player->client->buttons & BUTTON_ATTACK) == true)
 			{
@@ -743,12 +774,7 @@ static void sFireStage(struct edict_s* player)
 	player->client->ps.stats[30] = (short)(state->recoil * 100.0f);
 
 	// Subtract ammo
-	int* ammo = &player->client->pers.magazines[state->behaviour_index];
-	if (b->ammo_classname != NULL && strcmp(b->classname, b->ammo_classname) == 0)
-		ammo = &player->client->pers.inventory[state->ammo_item_index];
-
-	if (((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
-		*ammo -= (int)(b->fire_ammo);
+	*ammo -= (int)(b->fire_ammo);
 
 	// Apply recoil
 	state->recoil += b->recoil_step;
@@ -772,16 +798,6 @@ static void sFireStage(struct edict_s* player)
 	}
 }
 
-static int sMin(int a, int b)
-{
-	return (a < b) ? a : b;
-}
-
-static int sMax(int a, int b)
-{
-	return (a > b) ? a : b;
-}
-
 static void sReloadStage(struct edict_s* player)
 {
 	struct koiWeaponState* state = &player->client->weapon;
@@ -797,7 +813,7 @@ static void sReloadStage(struct edict_s* player)
 	state->fired = 0; // We are in Reload(), clearly we didn't fire
 
 	// No ammo
-	if (available_ammo < (int)(b->fire_ammo))
+	if (available_ammo < (int)(b->fire_ammo) && ((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
 	{
 		// Change weapon if current weapon is its own ammo
 		if (strcmp(b->ammo_classname, b->classname) == 0)
@@ -809,7 +825,7 @@ static void sReloadStage(struct edict_s* player)
 		// Change weapon if player doesn't want to iterate over empty weapons
 		else if (g_select_empty->value == 0)
 		{
-			if ((int)(b->fire_ammo) == 1)
+			if (b->fire_ammo == 0)
 				gi.cprintf(player, PRINT_HIGH, "No ammo for '%s'\n", b->print_name);
 			else
 				gi.cprintf(player, PRINT_HIGH, "No enough ammo for '%s'\n", b->print_name);
@@ -833,15 +849,22 @@ static void sReloadStage(struct edict_s* player)
 
 	if (state->reload_progress >= 1.0f)
 	{
-		const int ammo =
-		    sMin(available_ammo, b->magazine_size) - player->client->pers.magazines[state->behaviour_index];
-
-		// Add to magazine, subtract from ammo
-		player->client->pers.magazines[state->behaviour_index] += ammo;
-		player->client->pers.inventory[state->ammo_item_index] -= ammo;
-
 		// Change stage!
 		state->stage = KOI_WEAPON_IDLE;
+
+		// Ammo, add to magazine, subtract from ammo
+		if (((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
+		{
+			const int ammo =
+			    sMin(available_ammo, (int)(b->magazine_size)) - player->client->pers.magazines[state->behaviour_index];
+
+			player->client->pers.magazines[state->behaviour_index] += ammo;
+			player->client->pers.inventory[state->ammo_item_index] -= ammo;
+		}
+		else
+		{
+			player->client->pers.magazines[state->behaviour_index] = (int)(b->magazine_size);
+		}
 	}
 }
 

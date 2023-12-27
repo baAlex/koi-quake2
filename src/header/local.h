@@ -854,7 +854,7 @@ typedef struct
 
 	int selected_item;
 	int inventory[MAX_ITEMS];
-	uint8_t magazines[KOI_WEAPONS_NO];
+	int magazines[KOI_WEAPONS_NO]; /* Must be int */
 
 	/* ammo capacities */
 	int max_bullets;
