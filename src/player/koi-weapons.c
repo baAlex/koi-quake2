@@ -24,6 +24,7 @@
 
 // References/notes:
 // [*1] http://www.quake2.com/q2wfaq/q2wfaq.html
+// [*2] My own measures in original Quake 2
 
 
 // Keep an eye on:
@@ -55,6 +56,7 @@
 
 
 #define NO_MUZZLE_FLASH 255
+#define NO_TRAIL 255
 
 static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
     {
@@ -66,10 +68,11 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .idle_frame = 9,
         .take_frames = {0, 1, 2, 3},
 
-        .cook_time = 0,
+        .cook_step = 0.0f,
         //.fire_delay = 5 - 1, // "Two shots per second" [*1]
         .fire_delay = 4 - 1, // "Two shots per second" [*1]
         .muzzle_flash = MZ_BLASTER,
+        .trail_effect = NO_TRAIL,
 
         .damage = 10, // "10 in single play, 15 in deathmatch" [*1]
         .projectiles_no = 1,
@@ -93,10 +96,11 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .idle_frame = 21,
         .take_frames = {0, 1, 6, 7},
 
-        .cook_time = 0,
+        .cook_step = 0.0f,
         //.fire_delay = 10 - 1, // "One discharge (1 shell) per second" [*1]
         .fire_delay = 9 - 1, // A bit faster
         .muzzle_flash = MZ_SHOTGUN,
+        .trail_effect = NO_TRAIL,
 
         .damage = 4, // "4 per pellet, 12 pellets" [*1]
         .projectiles_no = 12,
@@ -125,9 +129,10 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .idle_frame = 6,
         .take_frames = {0, 1, 2, 3},
 
-        .cook_time = 0,
+        .cook_step = 0.0f,
         .fire_delay = 0, // "10 bullets per second" [*1]
         .muzzle_flash = MZ_MACHINEGUN,
+        .trail_effect = NO_TRAIL,
 
         .damage = 7, // "8 per bullet" [*1]
         .projectiles_no = 1,
@@ -173,9 +178,10 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .idle_frame = 21,
         .take_frames = {1, 2, 4, 5},
 
-        .cook_time = 0,
+        .cook_step = 0.0f,
         .fire_delay = 0, // "10 discharges (cells) per second" [*1]
         .muzzle_flash = MZ_HYPERBLASTER,
+        .trail_effect = NO_TRAIL,
 
         .damage = 14, // "10 single, 20 deathmatch" [*1]
         .projectiles_no = 1,
@@ -191,7 +197,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .reload_sound_name = "weapons/hyprbre.wav",
         .reload_step = 1.0f / (36.0f),
     },
-    /*{
+    {
         .print_name = "Railgun",
         .classname = "weapon_railgun",
 
@@ -201,15 +207,29 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
 
         .model_name = "models/weapons/v_rail/tris.md2",
         .idle_frame = 19,
+        .take_frames = {0, 1, 2, 3},
 
-        .fire_delay = 15 - 1, // "One shot (slug) every 1.5 seconds" [*1]
+        .cook_step = 0.0f,
+        //.fire_delay = 15 - 1, // "One shot (slug) every 1.5 seconds" [*1]
+        .fire_delay = 0,
         .muzzle_flash = MZ_RAILGUN,
 
-        .damage = (100 + 150) / 2,
+        .damage = 150,
         .projectiles_no = 1,
-        .impact_effect = TE_RAILTRAIL,
+        .impact_effect = TE_HEATBEAM_SPARKS,
+        .trail_effect = TE_RAILTRAIL,
+
+        .recoil_step = 0.0f,
+        .recoil_restore_step = 0.0f,
+        .spread = 0.0f,
+        .spread_crouch_scale = 0.0f,
+        .view_recoil_scale = 0.0f,
+
+        .magazine_size = 1,
+        .reload_sound_name = "weapons/railgre.wav",
+        .reload_step = 1.0f / (1.7f * 10.0f), // [*2]
     },
-    {
+    /*{
         .print_name = "BFG10K",
         .classname = "weapon_bfg",
 
@@ -239,10 +259,11 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .idle_frame = 33,
         .take_frames = {33, 33, 33, 33},
 
-        .cook_time = 50,
+        .cook_step = 1.0f / (5.0f * 10.0f),
         //.fire_delay = 20 - 1, // "About one every two seconds" [*1]
         .fire_delay = 10 - 1,
         .muzzle_flash = MZ_ROCKET,
+        .trail_effect = NO_TRAIL,
 
         .damage = 50,
         .projectiles_no = 1,
@@ -466,7 +487,7 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 		state->recoil = 0.0f; // TODO: every weapon should have its own recoil value
 		state->frame = 0;
 		state->fire_wait = 0;
-		state->cook = 0;
+		state->cook_progress = 0.0f;
 
 		player->client->ps.stats[27] = 0;
 		player->client->ps.stats[28] = 0;
@@ -561,11 +582,8 @@ void koiWeaponDev(const struct edict_s* player) {}
 // ============================================
 
 
-static int sTraceRay(const struct edict_s* player, vec3_t direction, trace_t* out)
+static int sTraceRay(const struct edict_s* player, vec3_t start, vec3_t direction, trace_t* out)
 {
-	vec3_t start;
-	VectorSet(start, player->s.origin[0], player->s.origin[1], player->s.origin[2] + (float)(player->viewheight));
-
 	vec3_t end;
 	VectorMA(start, 8192, direction, end);
 
@@ -608,12 +626,39 @@ static void sHitscan(const struct edict_s* player, const struct koiWeaponBehavio
 		AngleVectors(direction, direction_forward, NULL, NULL);
 	}
 
+	// Start origin
+	vec3_t start;
+	{
+		vec3_t dir;
+		vec3_t forward;
+		vec3_t side;
+
+		VectorSet(dir,                        //
+		          player->client->v_angle[0], //
+		          player->client->v_angle[1], //
+		          player->client->v_angle[2]);
+
+		AngleVectors(dir, forward, side, NULL);
+		VectorMA(player->s.origin, 10.0f, forward, start);
+		VectorMA(start, (player->client->pers.hand == LEFT_HANDED) ? -4.0f : 4.0f, side, start);
+		start[2] += (float)(player->viewheight) - 4.0f;
+	}
+
+	// Muzzle flash
+	if (b->muzzle_flash != NO_MUZZLE_FLASH)
+	{
+		gi.WriteByte(svc_muzzleflash);
+		gi.WriteShort(player - g_edicts);
+		gi.WriteByte((int)(b->muzzle_flash));
+		gi.multicast(start, MULTICAST_PVS);
+	}
+
 	// Trace a ray
 	trace_t tr;
 
 	for (int i = 0; i < b->projectiles_no; i += 1)
 	{
-		if (sTraceRay(player, direction_forward, &tr) != 0)
+		if (sTraceRay(player, start, direction_forward, &tr) != 0)
 			return;
 
 		// Impact puff
@@ -632,6 +677,16 @@ static void sHitscan(const struct edict_s* player, const struct koiWeaponBehavio
 				gi.WriteDir(tr.plane.normal);
 				gi.multicast(tr.endpos, MULTICAST_PVS);
 			}
+		}
+
+		// Trail
+		if (b->trail_effect != NO_TRAIL)
+		{
+			gi.WriteByte(svc_temp_entity);
+			gi.WriteByte((int)(b->trail_effect));
+			gi.WritePosition(start);
+			gi.WritePosition(tr.endpos);
+			gi.multicast(tr.endpos, MULTICAST_PVS);
 		}
 
 		// Update direction, no fancy polar here
@@ -725,7 +780,7 @@ static void sFireStage(struct edict_s* player)
 			return;
 		}
 
-		if (b->cook_time == 0)
+		if (b->cook_step == 0.0f)
 		{
 			// Should we fire?
 			if ((player->client->buttons & BUTTON_ATTACK) == false)
@@ -738,25 +793,25 @@ static void sFireStage(struct edict_s* player)
 		{
 			// Should we fire?, except that this time we ensure
 			// that the mouse was released on the wait after firing
-			if (state->cook == 0 && (player->client->buttons & BUTTON_ATTACK) == false)
+			if (state->cook_progress == 0.0f && (player->client->buttons & BUTTON_ATTACK) == false)
 			{
 				sRestoreRecoil(state, b);
 				return;
 			}
 
 			// Cook
-			state->cook += 1;
+			state->cook_progress += b->cook_step;
 
 			// Don't proceed with firing until player releases the
 			// mouse or we burn our food
-			if (state->cook <= b->cook_time && (player->client->buttons & BUTTON_ATTACK) == true)
+			if (state->cook_progress <= 1.0f && (player->client->buttons & BUTTON_ATTACK) == true)
 			{
 				sRestoreRecoil(state, b);
 				return;
 			}
 
 			// Next state after firing
-			state->cook = 0;
+			state->cook_progress = 0.0f;
 			state->stage = KOI_WEAPON_IDLE; // An assumption
 		}
 	}
@@ -780,15 +835,6 @@ static void sFireStage(struct edict_s* player)
 	state->recoil += b->recoil_step;
 	if (state->recoil > 1.0f)
 		state->recoil = 1.0f;
-
-	// Client effect
-	if (b->muzzle_flash != NO_MUZZLE_FLASH)
-	{
-		gi.WriteByte(svc_muzzleflash);
-		gi.WriteShort(player - g_edicts);
-		gi.WriteByte((int)(b->muzzle_flash));
-		gi.multicast(player->s.origin, MULTICAST_PVS);
-	}
 
 	// We have ammo?
 	if (b->fire_ammo != 0 && *ammo < (int)(b->fire_ammo))
@@ -908,7 +954,7 @@ void koiWeaponThink(struct edict_s* player)
 		else
 			player->client->ps.stats[28] = (short)(0);
 
-		player->client->ps.stats[29] = (short)(state->cook);
+		player->client->ps.stats[29] = (short)(state->cook_progress * 100.0f);
 		player->client->ps.stats[31] = (short)(state->recoil * 100.0f);
 	}
 }

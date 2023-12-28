@@ -27,7 +27,7 @@
 
 
 #define KOI_TAKE_FRAMES_NO 4 // For all weapons
-#define KOI_WEAPONS_NO 5
+#define KOI_WEAPONS_NO 6
 
 struct koiWeaponBehaviour
 {
@@ -45,7 +45,7 @@ struct koiWeaponBehaviour
 	uint8_t take_frames[KOI_TAKE_FRAMES_NO];
 
 	// Behaviour
-	uint8_t cook_time;
+	float cook_step; // 0, 1
 	uint8_t fire_delay;
 	uint8_t muzzle_flash;
 
@@ -53,6 +53,7 @@ struct koiWeaponBehaviour
 	uint8_t projectiles_no; // Like pellets in a shotgun
 	uint8_t damage;         // Per projectile
 	uint8_t impact_effect;  // 'TE_' prefixed client effect
+	uint8_t trail_effect;  // 'TE_' prefixed client effect
 	float projectiles_spray;
 
 	// Recoil
@@ -93,7 +94,7 @@ struct koiWeaponState
 	unsigned general_frame;
 
 	unsigned fire_wait;
-	unsigned cook;
+	float cook_progress;
 	float reload_progress;
 	float sound_wait;
 };
