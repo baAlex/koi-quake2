@@ -24,7 +24,7 @@
 
 // References/notes:
 // [*1] http://www.quake2.com/q2wfaq/q2wfaq.html
-// [*2] My own measures in original Quake 2
+// [*2] Me... actually reading the code
 
 
 // Keep an eye on:
@@ -82,7 +82,8 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .recoil_restore_step = 1.0f / (5.0f - 1.0f), // Match old fire delay, newer is faster
         .spread = 7.0f,
         .spread_crouch_scale = 0.1f, // Almost no spread
-        .view_recoil_scale = 4.0f,
+        .view_recoil_scale = 3.0f,
+        .view_shake_scale = 1.0f,
     },
     {
         .print_name = "Shotgun",
@@ -111,7 +112,8 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .recoil_restore_step = 1.0f / (10.0f - 1.0f), // Match old fire delay, newer is faster
         .spread = 50.0f,                              // Up to 100 is tolerable
         .spread_crouch_scale = 0.2f,
-        .view_recoil_scale = 5.0f,
+        .view_recoil_scale = 4.0f,
+        .view_shake_scale = 2.0f,
 
         .magazine_size = 10,
         .reload_sound_name = "weapons/shotgre.wav",
@@ -139,10 +141,13 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .impact_effect = TE_GUNSHOT,
 
         .recoil_step = (1.0f) / 12.0f, // 12 shots
-        .recoil_restore_step = 0.1f,
+        //.recoil_restore_step = 0.1f, // Fine, a bit slow
+        //.recoil_restore_step = 0.2f, // Fast, quite good maybe too much
+        .recoil_restore_step = 0.15f,
         .spread = 12.0f,
         .spread_crouch_scale = 0.6f,
         .view_recoil_scale = 7.0f,
+        .view_shake_scale = 1.8f,
 
         .magazine_size = 50,
         .reload_sound_name = "weapons/machgre.wav",
@@ -183,15 +188,21 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .muzzle_flash = MZ_HYPERBLASTER,
         .trail_effect = NO_TRAIL,
 
-        .damage = 14, // "10 single, 20 deathmatch" [*1]
+        //.damage = 20, // "10 single, 20 deathmatch" [*1], source is wrong
+        // is 20 in single, 15 in deathmatch [*2]
+
+        .damage = 14, // 14 feels fine
+
         .projectiles_no = 1,
         .impact_effect = TE_BLASTER,
 
         .recoil_step = (1.0f) / 15.0f, // 15 shots
-        .recoil_restore_step = 0.11f,
+        //.recoil_restore_step = 0.11f, // Fine, a bit slow
+        .recoil_restore_step = 0.16f, // Something similar to the Smg
         .spread = 10.0f,
         .spread_crouch_scale = 0.4f,
-        .view_recoil_scale = 2.5f,
+        .view_recoil_scale = 4.0f,
+        .view_shake_scale = 1.4f,
 
         .magazine_size = 25,
         .reload_sound_name = "weapons/hyprbre.wav",
@@ -219,11 +230,12 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .impact_effect = TE_HEATBEAM_SPARKS,
         .trail_effect = TE_RAILTRAIL,
 
-        .recoil_step = 0.0f,
-        .recoil_restore_step = 0.0f,
+        .recoil_step = 1.0f,
+        .recoil_restore_step = 0.1f, // [*2]
         .spread = 0.0f,
         .spread_crouch_scale = 0.0f,
-        .view_recoil_scale = 0.0f,
+        .view_recoil_scale = 9.0f,
+        .view_shake_scale = 6.0f,
 
         .magazine_size = 1,
         .reload_sound_name = "weapons/railgre.wav",
@@ -275,6 +287,7 @@ static struct koiWeaponBehaviour BEHAVIOURS[KOI_WEAPONS_NO] = {
         .spread = 0.0f,
         .spread_crouch_scale = 0.0f,
         .view_recoil_scale = 0.0f,
+        .view_shake_scale = 0.0f,
 
         .magazine_size = 0,
         .reload_sound_name = NULL,
@@ -295,10 +308,15 @@ static int sMax(int a, int b)
 	return (a > b) ? a : b;
 }
 
-static float sEasing(float x, float e)
+static float sEasing(float x, float k)
 {
-	(void)x;
-	(void)e;
+	// Normalised Tunable Sigmoid Function (V2)
+	// https://dhemery.github.io/DHE-Modules/technical/sigmoid/
+
+	// (x - k * x) / (k - 2.0f * k * fabsf(x) + 1.0f);
+
+	// We don't need the abs
+	return (x - k * x) / (k - 2.0f * k * x + 1.0f);
 }
 
 static const struct koiWeaponBehaviour* sFindBehaviour(const char* classname)
@@ -475,7 +493,7 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 	// Set state
 	{
 		state->stage = KOI_WEAPON_TAKE;
-		state->fired = 0;
+		state->restore_recoil = 1;
 
 		if (b->ammo_classname != NULL)
 			state->ammo_item_index = ITEM_INDEX(FindItemByClassname(b->ammo_classname));
@@ -717,27 +735,30 @@ static void sTakeStage(struct edict_s* player)
 	}
 }
 
+static void sAddRecoil(struct koiWeaponState* state, const struct koiWeaponBehaviour* b)
+{
+	state->recoil += b->recoil_step;
+	if (state->recoil > 1.0f)
+		state->recoil = 1.0f;
+
+	state->view_recoil = sEasing(state->recoil, -0.60f) * b->view_recoil_scale;
+	state->view_shake = b->view_shake_scale;
+}
+
 static void sRestoreRecoil(struct koiWeaponState* state, const struct koiWeaponBehaviour* b)
 {
-	// This function is kind of invasive, present on all weapons stages
-	// as any free time should be used to restore the recoil
-	// TODO!
-
 	state->recoil -= b->recoil_restore_step;
 	if (state->recoil < 0.0f)
 		state->recoil = 0.0f;
+
+	state->view_recoil = sEasing(state->recoil, -0.60f) * b->view_recoil_scale;
+	state->view_shake = 0;
 }
 
 static void sIdleStage(struct edict_s* player)
 {
 	struct koiWeaponState* state = &player->client->weapon;
 	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
-
-	// Restore recoil,
-	// if we didn't fire in this frame
-	if (state->fired == 0)
-		sRestoreRecoil(state, b);
-	state->fired = 0; // We are in Idle(), clearly we didn't fire
 
 	// Should we reload?
 	if (b->ammo_classname != NULL &&
@@ -760,6 +781,8 @@ static void sFireStage(struct edict_s* player)
 	struct koiWeaponState* state = &player->client->weapon;
 	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);
 
+	state->restore_recoil = 1; // In case of an early return,
+
 	// From where subtract ammo, depending on the
 	// time of weapon (grenades are its own ammo)
 	int* ammo = &player->client->pers.magazines[state->behaviour_index];
@@ -775,29 +798,20 @@ static void sFireStage(struct edict_s* player)
 	{
 		// Wait a bit between shots
 		if (state->fire_wait >= state->general_frame)
-		{
-			sRestoreRecoil(state, b);
 			return;
-		}
 
 		if (b->cook_step == 0.0f)
 		{
 			// Should we fire?
 			if ((player->client->buttons & BUTTON_ATTACK) == false)
-			{
-				sRestoreRecoil(state, b);
 				return;
-			}
 		}
 		else
 		{
 			// Should we fire?, except that this time we ensure
 			// that the mouse was released on the wait after firing
 			if (state->cook_progress == 0.0f && (player->client->buttons & BUTTON_ATTACK) == false)
-			{
-				sRestoreRecoil(state, b);
 				return;
-			}
 
 			// Cook
 			state->cook_progress += b->cook_step;
@@ -805,10 +819,7 @@ static void sFireStage(struct edict_s* player)
 			// Don't proceed with firing until player releases the
 			// mouse or we burn our food
 			if (state->cook_progress <= 1.0f && (player->client->buttons & BUTTON_ATTACK) == true)
-			{
-				sRestoreRecoil(state, b);
 				return;
-			}
 
 			// Next state after firing
 			state->cook_progress = 0.0f;
@@ -817,28 +828,28 @@ static void sFireStage(struct edict_s* player)
 	}
 
 	// Fire,
-	// before recoil so first shot always goes to centre
 	{
+		// Process projectile before recoil,
+		// so first shot always goes to centre
 		sHitscan(player, b);
 
-		state->fired = 1;
+		// Developers, developers, developers,
+		// before recoil as well
+		player->client->ps.stats[30] = (short)(state->recoil * 100.0f);
+
+		// Update thingies
+		sAddRecoil(state, b);
+		state->restore_recoil = 0;
 		state->fire_wait = state->general_frame + (unsigned)(b->fire_delay);
 	}
-
-	// Developers, developers, developers
-	player->client->ps.stats[30] = (short)(state->recoil * 100.0f);
 
 	// Subtract ammo
 	*ammo -= (int)(b->fire_ammo);
 
-	// Apply recoil
-	state->recoil += b->recoil_step;
-	if (state->recoil > 1.0f)
-		state->recoil = 1.0f;
-
 	// We have ammo?
 	if (b->fire_ammo != 0 && *ammo < (int)(b->fire_ammo))
 	{
+		state->restore_recoil = 1;
 		state->stage = KOI_WEAPON_RELOAD; // Change stage!
 		state->reload_progress = 0.0f;
 	}
@@ -851,12 +862,6 @@ static void sReloadStage(struct edict_s* player)
 
 	const int available_ammo =
 	    player->client->pers.inventory[state->ammo_item_index] + player->client->pers.magazines[state->behaviour_index];
-
-	// Restore recoil,
-	// if we didn't fire in this frame
-	if (state->fired == 0)
-		sRestoreRecoil(state, b);
-	state->fired = 0; // We are in Reload(), clearly we didn't fire
 
 	// No ammo
 	if (available_ammo < (int)(b->fire_ammo) && ((int)(dmflags->value) & DF_INFINITE_AMMO) == 0)
@@ -933,6 +938,10 @@ void koiWeaponThink(struct edict_s* player)
 		case KOI_WEAPON_FIRE: sFireStage(player); break;
 		case KOI_WEAPON_RELOAD: sReloadStage(player); break;
 		}
+
+		// Restore recoir, regardless of stage
+		if (state->restore_recoil == 1)
+			sRestoreRecoil(state, b);
 
 		// If the stage changed, we execute it right now
 		// (it's a game running at 10 fps)

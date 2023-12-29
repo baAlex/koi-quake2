@@ -73,9 +73,11 @@ static const bool WALKCYCLE_FOOTSTEP_SOUND = true;                // Depends on 
 // ================
 static const bool GUN_BOB = true; // Requires WALKCYCLE
 
-static const float GUN_BOB_PITCH[3] = {2.0f, 1.5f, 1.0f}; // Running, walking, otherwise
-static const float GUN_BOB_YAW[3] = {1.5f, 1.5f, 1.5f};
-static const float GUN_BOB_ROLL[3] = {0.75f, 0.75f, 0.75f};
+static const float GUN_BOB_SCALE = 0.8f; // Too much movements layer
+
+static const float GUN_BOB_PITCH[3] = {2.0f  * GUN_BOB_SCALE, 1.5f  * GUN_BOB_SCALE, 1.0f  * GUN_BOB_SCALE}; // Running, walking, otherwise
+static const float GUN_BOB_YAW[3] =   {1.5f  * GUN_BOB_SCALE, 1.5f  * GUN_BOB_SCALE, 1.5f  * GUN_BOB_SCALE};
+static const float GUN_BOB_ROLL[3] =  {0.75f * GUN_BOB_SCALE, 0.75f * GUN_BOB_SCALE, 0.75f * GUN_BOB_SCALE};
 
 static const int GUN_BOB_PITCH_WAVE[3] = {0, 0, 0}; // Waveforms, for running, walking, otherwhise
 static const int GUN_BOB_YAW_WAVE[3] = {1, 1, 1};
@@ -92,7 +94,7 @@ static const int GUN_BOB_ROLL_WAVE[3] = {1, 1, 1};
 // ==========================
 static const bool GUN_OFFSET_RECOIL = true; // WALKCYCLE not required, but helps
 
-static const float GUN_OFFSET_RECOIL_SCALE[3] = {0.7F, 0.6F, 0.5F}; // Running, walking, otherwise
+static const float GUN_OFFSET_RECOIL_SCALE[3] = {0.4F, 0.3F, 0.2F}; // Running, walking, otherwise
 
 
 // Gun angle inertia (view.c)

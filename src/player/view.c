@@ -970,7 +970,7 @@ ClientEndServerFrame(edict_t *ent)
 	VectorClear(ent->client->ps.viewoffset);
 	ent->client->ps.viewoffset[2] += ent->viewheight;
 
-	const float ducked_attenuation = (!(ent->client->ps.pmove.pm_flags & PMF_DUCKED)) ? 1.0f : 0.6f;
+	const float crouch_attenuation = (!(ent->client->ps.pmove.pm_flags & PMF_DUCKED)) ? 1.0f : 0.6f; /* TODO */
 
 	/* Walkcycle */
 	float xyspeed;
@@ -1023,15 +1023,12 @@ ClientEndServerFrame(edict_t *ent)
 
 	/* Gun base angles */
 	VectorClear(ent->client->ps.gunangles);
-	//if (ent->client->weapon.frame <= 4)
-	//{
-		/* baAlex, TODO: hardcoded values */
-	//	ent->client->ps.gunangles[0] = (1.0f - sEasing((float)(ent->client->weapon.frame) / 4.0f, 2.0f)) * (30.0f);
-	//}
 
-	/* Gun bob */
+	/* Gun angle bob */
 	if (GUN_BOB == true && WALKCYCLE == true)
 	{
+		vec3_t angle;
+
 		const float waveform[3] = {
 			sinf(ent->client->bobtime * 2.0f),
 			sinf(ent->client->bobtime * 1.0f),
@@ -1040,22 +1037,31 @@ ClientEndServerFrame(edict_t *ent)
 
 		if (xyspeed > WALKCYCLE_RUN_SPEED)
 		{
-			ent->client->ps.gunangles[PITCH] += waveform[GUN_BOB_PITCH_WAVE[0]] * GUN_BOB_PITCH[0];
-			ent->client->ps.gunangles[YAW] += waveform[GUN_BOB_YAW_WAVE[0]] * GUN_BOB_YAW[0];
-			ent->client->ps.gunangles[ROLL] += waveform[GUN_BOB_ROLL_WAVE[0]] * GUN_BOB_ROLL[0];
+			angle[PITCH] = waveform[GUN_BOB_PITCH_WAVE[0]] * GUN_BOB_PITCH[0];
+			angle[YAW] = waveform[GUN_BOB_YAW_WAVE[0]] * GUN_BOB_YAW[0];
+			angle[ROLL] = waveform[GUN_BOB_ROLL_WAVE[0]] * GUN_BOB_ROLL[0];
 		}
 		else if (xyspeed > WALKCYCLE_WALK_SPEED)
 		{
-			ent->client->ps.gunangles[PITCH] += waveform[GUN_BOB_PITCH_WAVE[1]] * GUN_BOB_PITCH[1];
-			ent->client->ps.gunangles[YAW] += waveform[GUN_BOB_YAW_WAVE[1]] * GUN_BOB_YAW[1];
-			ent->client->ps.gunangles[ROLL] += waveform[GUN_BOB_ROLL_WAVE[1]] * GUN_BOB_ROLL[1];
+			angle[PITCH] = waveform[GUN_BOB_PITCH_WAVE[1]] * GUN_BOB_PITCH[1];
+			angle[YAW] = waveform[GUN_BOB_YAW_WAVE[1]] * GUN_BOB_YAW[1];
+			angle[ROLL] = waveform[GUN_BOB_ROLL_WAVE[1]] * GUN_BOB_ROLL[1];
 		}
 		else
 		{
-			ent->client->ps.gunangles[PITCH] += waveform[GUN_BOB_PITCH_WAVE[2]] * GUN_BOB_PITCH[2];
-			ent->client->ps.gunangles[YAW] += waveform[GUN_BOB_YAW_WAVE[2]] * GUN_BOB_YAW[2];
-			ent->client->ps.gunangles[ROLL] += waveform[GUN_BOB_ROLL_WAVE[2]] * GUN_BOB_ROLL[2];
+			angle[PITCH] = waveform[GUN_BOB_PITCH_WAVE[2]] * GUN_BOB_PITCH[2];
+			angle[YAW] = waveform[GUN_BOB_YAW_WAVE[2]] * GUN_BOB_YAW[2];
+			angle[ROLL] = waveform[GUN_BOB_ROLL_WAVE[2]] * GUN_BOB_ROLL[2];
 		}
+
+		/* If firing, shake it! */
+		angle[0] += (float)((frandk() - 0.5f) * ent->client->weapon.view_shake) * ent->client->weapon.recoil;
+		angle[1] += (float)((frandk() - 0.5f) * ent->client->weapon.view_shake) * ent->client->weapon.recoil;
+		angle[2] += (float)((frandk() - 0.5f) * ent->client->weapon.view_shake) * ent->client->weapon.recoil;
+
+		ent->client->ps.gunangles[0] = angle[0];
+		ent->client->ps.gunangles[1] = angle[1];
+		ent->client->ps.gunangles[2] = angle[2];
 	}
 
 	/* Gun angle inertia */
@@ -1070,7 +1076,7 @@ ClientEndServerFrame(edict_t *ent)
 			float* inertia = ent->client->gun_angle_inertia + i;
 
 			/* And then a simple lowpass do the job */
-			inertia[i] = LerpAngle(angle[i], inertia[i], GUN_ANGLE_INERTIA_Q * ducked_attenuation);
+			inertia[i] = LerpAngle(angle[i], inertia[i], GUN_ANGLE_INERTIA_Q * crouch_attenuation);
 			const float inertia_delta = sAngleSubtract(angle[i], inertia[i]);
 
 			/* Don't let it be to slow tho */
@@ -1089,6 +1095,11 @@ ClientEndServerFrame(edict_t *ent)
 		VectorSubtract(angle, ent->client->v_angle, angle);
 		if (ent->client->pers.hand == LEFT_HANDED)
 			angle[1] = -angle[1];
+
+		/* Tune it down when firing */
+		angle[0] *= (1.0f - ent->client->weapon.recoil);
+		angle[1] *= (1.0f - ent->client->weapon.recoil);
+		angle[2] *= (1.0f - ent->client->weapon.recoil);
 
 		/* Of course, we add such delta to the already computed gun angles */
 		VectorAdd(angle, ent->client->ps.gunangles, ent->client->ps.gunangles);
@@ -1113,14 +1124,23 @@ ClientEndServerFrame(edict_t *ent)
 			VectorClear(offset);
 
 		/* Recoil */
-		if (GUN_OFFSET_RECOIL == true /*&& ent->client->weapon.b != NULL*/)
+		if (GUN_OFFSET_RECOIL == true)
 		{
 			if (xyspeed > WALKCYCLE_RUN_SPEED)
-				offset[0] -= ent->client->weapon.recoil * /*ent->client->weapon.b->view_recoil_scale **/ GUN_OFFSET_RECOIL_SCALE[0];
+			{
+				offset[0] -= ent->client->weapon.view_recoil * GUN_OFFSET_RECOIL_SCALE[0];
+				offset[2] -= ent->client->weapon.view_recoil * GUN_OFFSET_RECOIL_SCALE[0] / 3.0f; /* TODO */
+			}
 			else if (xyspeed > WALKCYCLE_WALK_SPEED)
-				offset[0] -= ent->client->weapon.recoil * /*ent->client->weapon.b->view_recoil_scale **/ GUN_OFFSET_RECOIL_SCALE[1];
+			{
+				offset[0] -= ent->client->weapon.view_recoil * GUN_OFFSET_RECOIL_SCALE[1];
+				offset[2] -= ent->client->weapon.view_recoil * GUN_OFFSET_RECOIL_SCALE[1] / 4.0f;
+			}
 			else
-				offset[0] -= ent->client->weapon.recoil * /*ent->client->weapon.b->view_recoil_scale **/ GUN_OFFSET_RECOIL_SCALE[2] * ducked_attenuation;
+			{
+				offset[0] -= ent->client->weapon.view_recoil * GUN_OFFSET_RECOIL_SCALE[2] * crouch_attenuation;
+				offset[2] -= ent->client->weapon.view_recoil * (GUN_OFFSET_RECOIL_SCALE[2] * crouch_attenuation) / 5.0f;
+			}
 		}
 
 		/* Add things together */

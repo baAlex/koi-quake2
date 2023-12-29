@@ -53,7 +53,7 @@ struct koiWeaponBehaviour
 	uint8_t projectiles_no; // Like pellets in a shotgun
 	uint8_t damage;         // Per projectile
 	uint8_t impact_effect;  // 'TE_' prefixed client effect
-	uint8_t trail_effect;  // 'TE_' prefixed client effect
+	uint8_t trail_effect;   // 'TE_' prefixed client effect
 	float projectiles_spray;
 
 	// Recoil
@@ -63,6 +63,7 @@ struct koiWeaponBehaviour
 
 	float spread_crouch_scale;
 	float view_recoil_scale;
+	float view_shake_scale;
 
 	// Reload
 	uint8_t magazine_size;
@@ -88,14 +89,18 @@ struct koiWeaponState
 	size_t ammo_item_index;
 
 	enum koiWeaponStage stage;
-	unsigned fired;
-	float recoil;
+
+	unsigned restore_recoil; // 0, 1
+	float recoil;            // 0, 1
+	float view_recoil;       // 0, x
+	float view_shake;        // 0, x
+
 	unsigned frame;
 	unsigned general_frame;
 
 	unsigned fire_wait;
-	float cook_progress;
-	float reload_progress;
+	float cook_progress;   // 0, 1
+	float reload_progress; // 0, 1
 	float sound_wait;
 };
 
