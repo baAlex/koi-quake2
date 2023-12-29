@@ -27,7 +27,7 @@
 
 
 #define KOI_TAKE_FRAMES_NO 4 // For all weapons
-#define KOI_WEAPONS_NO 6
+#define KOI_WEAPONS_NO 7
 
 struct koiWeaponBehaviour
 {
@@ -90,18 +90,20 @@ struct koiWeaponState
 
 	enum koiWeaponStage stage;
 
-	unsigned restore_recoil; // 0, 1
-	float recoil;            // 0, 1
-	float view_recoil;       // 0, x
-	float view_shake;        // 0, x
+	float recoil;      // 0, 1
+	float view_recoil; // 0, x
+	float view_shake;  // 0, x
 
-	unsigned frame;
-	unsigned general_frame;
+	unsigned frame;         // 0, x
+	unsigned general_frame; // 0, x
 
-	unsigned fire_wait;
+	unsigned fire_wait;    // 0, x
 	float cook_progress;   // 0, 1
 	float reload_progress; // 0, 1
-	float sound_wait;
+	float sound_wait;      // 0, x
+
+	unsigned restore_recoil : 1;
+	unsigned its_own_ammo : 1;
 };
 
 #include "../header/local.h"
