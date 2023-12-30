@@ -724,6 +724,8 @@ TossClientWeapon(edict_t *self)
 		return;
 	}
 
+	koiWeaponUse(self, NULL);
+
 	if (!deathmatch->value)
 	{
 		return;

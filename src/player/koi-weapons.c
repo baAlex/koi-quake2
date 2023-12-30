@@ -499,6 +499,24 @@ return_failure:
 void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 {
 	struct koiWeaponState* state = &player->client->weapon;
+
+	// Player died
+	if (weapon_item == NULL)
+	{
+		state->ready = 0;
+		player->client->ps.gunindex = 0;
+
+		// Outside code is in charge of 'client_persistant_t::pers.weapon'
+
+		// Also our 'client_persistant_t::magazine' is memset'ed from outside
+		// as well, by default in existing code
+
+		// TODO?, move ammo from magazine to inventory?
+
+		return;
+	}
+
+	// Find behaviour
 	const struct koiWeaponBehaviour* prev_b = sBehaviourFromIndex(state->behaviour_index);
 	const struct koiWeaponBehaviour* b = sFindBehaviour(weapon_item->classname);
 
@@ -510,7 +528,7 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 
 	gi.cprintf(player, PRINT_HIGH, "koiWeaponUse(): '%s', index: %i\n", b->classname, ITEM_INDEX(weapon_item));
 
-	if (prev_b == b)
+	if (state->ready == 1 && prev_b == b)
 		return;
 
 	// Honor this cvar, don't use an empty weapon
@@ -530,6 +548,8 @@ void koiWeaponUse(struct edict_s* player, struct gitem_s* weapon_item)
 
 	// Set state
 	{
+		state->ready = 1;
+
 		state->stage = KOI_WEAPON_TAKE;
 		state->restore_recoil = 1;
 
@@ -982,6 +1002,8 @@ static void sReloadStage(struct edict_s* player)
 void koiWeaponThink(struct edict_s* player)
 {
 	struct koiWeaponState* state = &player->client->weapon;
+	if (state->ready == 0)
+		return;
 
 	// Retrieve behaviour
 	const struct koiWeaponBehaviour* b = sBehaviourFromIndex(state->behaviour_index);

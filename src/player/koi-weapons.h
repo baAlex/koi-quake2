@@ -85,6 +85,11 @@ struct koiWeaponState
 {
 	// NO POINTERS!
 
+	unsigned ready; // 0, 1
+	// koiWeaponUse() sets things ready.
+	// Also if outside code don't force the Blaster
+	// at level start, weapon logic should work fine
+
 	size_t behaviour_index;
 	size_t ammo_item_index;
 
